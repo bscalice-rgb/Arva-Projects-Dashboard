@@ -1,0 +1,369 @@
+// Arva Scope-3 Projects Dashboard — Prisma schema
+// Identity (stable across seasons) vs Season (per program year) split, mirroring
+// the CropForce hierarchy: Org Node -> Client -> (Legal Entity + pipeline + outcomes).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums (shared categorical values; string mirrors live in src/lib/enums.ts)
+// ---------------------------------------------------------------------------
+
+enum OrgNodeKind {
+  CHANNEL_PARTNER
+  DIRECT_GROWER
+}
+
+enum ChannelPartnerType {
+  CHANNEL_PARTNER
+  REFERRER
+}
+
+enum Country {
+  ARG
+  BRA
+  CHL
+  COL
+  IDN
+  MEX
+  AUS
+  PHL
+  USA
+  PRY
+  URY
+  BOL
+  PER
+  ECU
+  IND
+  THA
+  MYS
+  VNM
+  ZAF
+  OTHER
+}
+
+enum Crop {
+  CORN
+  SOYBEANS
+  CORN_SOYBEANS
+  SUGARCANE
+  AFRICAN_OIL_PALM
+  SUGARBEETS
+  WHEAT_BARLEY
+}
+
+enum DataStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+}
+
+enum QaqcNpks {
+  NOT_DONE
+  DONE
+}
+
+enum QaqcFlags {
+  OPEN
+  RESOLVED
+  NONE
+}
+
+enum Evidencing {
+  NOT_ATTACHED
+  ATTACHED
+}
+
+enum EccStatus {
+  NOT_STARTED
+  PENDING
+  CONFIRMED
+}
+
+enum W8Type {
+  W8BEN
+  W8BENE
+}
+
+enum ContractStatus {
+  NOT_SENT
+  SENT
+  SIGNED
+}
+
+enum MillType {
+  MILL
+  REFINERY
+}
+
+enum RevSharePayeeType {
+  CP
+  REFERRER
+}
+
+enum RevShareBasis {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+// ---------------------------------------------------------------------------
+// Ownership seam — single admin today, room for more users later.
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  orgNodes        OrgNode[]
+  channelPartners ChannelPartner[]
+  clients         Client[]
+  mills           Mill[]
+  supplySheds     SupplyShed[]
+}
+
+// ---------------------------------------------------------------------------
+// Seasons / program years
+// ---------------------------------------------------------------------------
+
+model Season {
+  id        String   @id @default(cuid())
+  year      Int      @unique
+  label     String
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  channelPartnerSeasons ChannelPartnerSeason[]
+  clientSeasons         ClientSeason[]
+  supplySheds           SupplyShed[]
+}
+
+// ---------------------------------------------------------------------------
+// Identity: Channel Partner
+// ---------------------------------------------------------------------------
+
+model ChannelPartner {
+  id          String             @id @default(cuid())
+  entityName  String
+  mainContact String?
+  type        ChannelPartnerType @default(CHANNEL_PARTNER)
+  country     Country
+  notes       String?
+  userId      String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user        User?                  @relation(fields: [userId], references: [id])
+  orgNodes    OrgNode[]
+  seasons     ChannelPartnerSeason[]
+  supplySheds SupplyShed[]
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Identity: Org Node (top-level CropForce repository — CP or direct grower)
+// ---------------------------------------------------------------------------
+
+model OrgNode {
+  id               String      @id @default(cuid())
+  name             String
+  kind             OrgNodeKind
+  country          Country
+  channelPartnerId String?
+  userId           String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  channelPartner ChannelPartner? @relation(fields: [channelPartnerId], references: [id])
+  user           User?           @relation(fields: [userId], references: [id])
+  clients        Client[]
+
+  @@index([channelPartnerId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Identity: Client (a grower under an Org Node)
+// ---------------------------------------------------------------------------
+
+model Client {
+  id          String   @id @default(cuid())
+  orgNodeId   String
+  name        String
+  legalEntity String?
+  country     Country
+  defaultCrop Crop
+  millId      String?
+  region      String?
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orgNode OrgNode        @relation(fields: [orgNodeId], references: [id], onDelete: Cascade)
+  mill    Mill?          @relation(fields: [millId], references: [id])
+  user    User?          @relation(fields: [userId], references: [id])
+  seasons ClientSeason[]
+
+  @@index([orgNodeId])
+  @@index([millId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Identity: Mill / Refinery (sugarcane & palm processing)
+// ---------------------------------------------------------------------------
+
+model Mill {
+  id        String   @id @default(cuid())
+  name      String
+  type      MillType @default(MILL)
+  crop      Crop
+  country   Country
+  region    String?
+  notes     String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User?    @relation(fields: [userId], references: [id])
+  clients Client[]
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Per-season: Channel Partner record
+// ---------------------------------------------------------------------------
+
+model ChannelPartnerSeason {
+  id                String   @id @default(cuid())
+  channelPartnerId  String
+  seasonId          String
+  agreementSigned   Boolean  @default(false)
+  w8Provided        Boolean  @default(false)
+  bankDetails       Boolean  @default(false)
+  paymentDone       Boolean  @default(false)
+  agreementComments String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  channelPartner ChannelPartner      @relation(fields: [channelPartnerId], references: [id], onDelete: Cascade)
+  season         Season              @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  payees         RevenueSharePayee[]
+
+  @@unique([channelPartnerId, seasonId])
+  @@index([seasonId])
+}
+
+// ---------------------------------------------------------------------------
+// Per-season: Revenue-share payee (flexible — one or more per CP season)
+// ---------------------------------------------------------------------------
+
+model RevenueSharePayee {
+  id                     String            @id @default(cuid())
+  channelPartnerSeasonId String
+  name                   String
+  payeeType              RevSharePayeeType @default(CP)
+  basis                  RevShareBasis     @default(PERCENTAGE)
+  // For PERCENTAGE: decimal fraction (0.06 = 6%). For FIXED_AMOUNT: USD figure.
+  rate                   Float             @default(0)
+  notes                  String?
+  createdAt              DateTime          @default(now())
+
+  channelPartnerSeason ChannelPartnerSeason @relation(fields: [channelPartnerSeasonId], references: [id], onDelete: Cascade)
+
+  @@index([channelPartnerSeasonId])
+}
+
+// ---------------------------------------------------------------------------
+// Per-season: Client execution record (the pipeline + outcomes)
+// ---------------------------------------------------------------------------
+
+model ClientSeason {
+  id       String @id @default(cuid())
+  clientId String
+  seasonId String
+  crop     Crop
+
+  // Planned / enrolled area
+  enrolledHectares Float?
+  enrolledAcres    Float?
+
+  // ---- Execution pipeline flags (order lives in src/lib/pipeline.ts) ----
+  legalEntitySetup            Boolean        @default(false)
+  dataStatus                  DataStatus     @default(NOT_STARTED)
+  fieldRequested              Boolean        @default(false)
+  qaqcNpks                    QaqcNpks       @default(NOT_DONE)
+  qaqcFlags                   QaqcFlags      @default(OPEN)
+  fieldConfirmed              Boolean        @default(false)
+  evidencing                  Evidencing     @default(NOT_ATTACHED)
+  ecc                         EccStatus      @default(NOT_STARTED)
+  eccLink                     String?
+  w8Type                      W8Type?
+  w8InCropForce               Boolean        @default(false)
+  w8MatchesLegalEntity        Boolean        @default(false)
+  contractStatus              ContractStatus @default(NOT_SENT)
+  contractApprovedInCropForce Boolean        @default(false)
+  bankDetails                 Boolean        @default(false)
+
+  // ---- Outcomes ----
+  fields            Int?
+  tCO2e             Float?
+  deliveredAcres    Float?
+  deliveredHectares Float?
+  amount            Float? // grower payment, USD
+  paymentDone       Boolean @default(false)
+
+  comments String?
+
+  // Carry-forward reference to last year's record for convenience.
+  carriedForwardFromId String?       @unique
+  carriedForwardFrom   ClientSeason? @relation("CarryForward", fields: [carriedForwardFromId], references: [id])
+  carriedForwardTo     ClientSeason? @relation("CarryForward")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, seasonId])
+  @@index([seasonId])
+  @@index([clientId])
+}
+
+// ---------------------------------------------------------------------------
+// Per-season: Supply Shed / Allocation target (CP x crop x country x region)
+// Loaded & balance are computed in the app from ClientSeason delivered area.
+// ---------------------------------------------------------------------------
+
+model SupplyShed {
+  id                 String   @id @default(cuid())
+  seasonId           String
+  country            Country
+  channelPartnerId   String?
+  crop               Crop
+  region             String?
+  acresNeeded        Float    @default(0)
+  hectaresNeeded     Float    @default(0)
+  enteredInCropForce Boolean  @default(false)
+  userId             String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  season         Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  channelPartner ChannelPartner? @relation(fields: [channelPartnerId], references: [id])
+  user           User?           @relation(fields: [userId], references: [id])
+
+  @@index([seasonId])
+  @@index([channelPartnerId])
+}
