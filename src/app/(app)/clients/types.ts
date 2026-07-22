@@ -1,0 +1,152 @@
+import type {
+  Country,
+  Crop,
+  DataStatus,
+  QaqcNpks,
+  QaqcFlags,
+  Evidencing,
+  EccStatus,
+  W8Type,
+  ContractStatus,
+  OrgNodeKind,
+} from "@prisma/client";
+
+/** Fully serializable per-season row used by the table, detail and CSV. */
+export type ClientSeasonRow = {
+  id: string;
+  clientId: string;
+  clientName: string;
+  legalEntity: string | null;
+  orgNodeId: string;
+  orgNodeName: string;
+  orgNodeKind: OrgNodeKind;
+  channelPartnerName: string | null;
+  millName: string | null;
+  country: Country;
+  region: string | null;
+
+  crop: Crop;
+  enrolledHectares: number | null;
+  enrolledAcres: number | null;
+
+  legalEntitySetup: boolean;
+  dataStatus: DataStatus;
+  fieldRequested: boolean;
+  qaqcNpks: QaqcNpks;
+  qaqcFlags: QaqcFlags;
+  fieldConfirmed: boolean;
+  evidencing: Evidencing;
+  ecc: EccStatus;
+  eccLink: string | null;
+  w8Type: W8Type | null;
+  w8InCropForce: boolean;
+  w8MatchesLegalEntity: boolean;
+  contractStatus: ContractStatus;
+  contractApprovedInCropForce: boolean;
+  bankDetails: boolean;
+
+  fields: number | null;
+  tCO2e: number | null;
+  deliveredAcres: number | null;
+  deliveredHectares: number | null;
+  amount: number | null;
+  paymentDone: boolean;
+
+  comments: string | null;
+};
+
+// The Prisma query shape needed to build a ClientSeasonRow.
+export const clientSeasonInclude = {
+  client: {
+    include: {
+      orgNode: { include: { channelPartner: true } },
+      mill: true,
+    },
+  },
+} as const;
+
+type PrismaClientSeason = {
+  id: string;
+  clientId: string;
+  crop: Crop;
+  enrolledHectares: number | null;
+  enrolledAcres: number | null;
+  legalEntitySetup: boolean;
+  dataStatus: DataStatus;
+  fieldRequested: boolean;
+  qaqcNpks: QaqcNpks;
+  qaqcFlags: QaqcFlags;
+  fieldConfirmed: boolean;
+  evidencing: Evidencing;
+  ecc: EccStatus;
+  eccLink: string | null;
+  w8Type: W8Type | null;
+  w8InCropForce: boolean;
+  w8MatchesLegalEntity: boolean;
+  contractStatus: ContractStatus;
+  contractApprovedInCropForce: boolean;
+  bankDetails: boolean;
+  fields: number | null;
+  tCO2e: number | null;
+  deliveredAcres: number | null;
+  deliveredHectares: number | null;
+  amount: number | null;
+  paymentDone: boolean;
+  comments: string | null;
+  client: {
+    id: string;
+    name: string;
+    legalEntity: string | null;
+    country: Country;
+    region: string | null;
+    orgNodeId: string;
+    orgNode: {
+      id: string;
+      name: string;
+      kind: OrgNodeKind;
+      channelPartner: { entityName: string } | null;
+    };
+    mill: { name: string } | null;
+  };
+};
+
+export function toClientSeasonRow(cs: PrismaClientSeason): ClientSeasonRow {
+  return {
+    id: cs.id,
+    clientId: cs.clientId,
+    clientName: cs.client.name,
+    legalEntity: cs.client.legalEntity,
+    orgNodeId: cs.client.orgNodeId,
+    orgNodeName: cs.client.orgNode.name,
+    orgNodeKind: cs.client.orgNode.kind,
+    channelPartnerName: cs.client.orgNode.channelPartner?.entityName ?? null,
+    millName: cs.client.mill?.name ?? null,
+    country: cs.client.country,
+    region: cs.client.region,
+    crop: cs.crop,
+    enrolledHectares: cs.enrolledHectares,
+    enrolledAcres: cs.enrolledAcres,
+    legalEntitySetup: cs.legalEntitySetup,
+    dataStatus: cs.dataStatus,
+    fieldRequested: cs.fieldRequested,
+    qaqcNpks: cs.qaqcNpks,
+    qaqcFlags: cs.qaqcFlags,
+    fieldConfirmed: cs.fieldConfirmed,
+    evidencing: cs.evidencing,
+    ecc: cs.ecc,
+    eccLink: cs.eccLink,
+    w8Type: cs.w8Type,
+    w8InCropForce: cs.w8InCropForce,
+    w8MatchesLegalEntity: cs.w8MatchesLegalEntity,
+    contractStatus: cs.contractStatus,
+    contractApprovedInCropForce: cs.contractApprovedInCropForce,
+    bankDetails: cs.bankDetails,
+    fields: cs.fields,
+    tCO2e: cs.tCO2e,
+    deliveredAcres: cs.deliveredAcres,
+    deliveredHectares: cs.deliveredHectares,
+    amount: cs.amount,
+    paymentDone: cs.paymentDone,
+    comments: cs.comments,
+  };
+}
