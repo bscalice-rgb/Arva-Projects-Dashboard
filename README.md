@@ -97,8 +97,7 @@ Currency is **USD only**. There is **no spreadsheet import** — data is entered
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | yes | Postgres connection string used at runtime. On Vercel, the Neon integration injects this automatically. Use the **pooled** URL if your provider offers one. |
-| `DIRECT_URL` | recommended | Direct (non-pooled) connection used by Prisma migrations. Falls back conceptually to `DATABASE_URL` if identical. |
+| `DATABASE_URL` | yes | Postgres connection string used for queries and migrations. On Vercel, the Neon integration injects this automatically. |
 | `AUTH_SECRET` | yes | Session/JWT secret for Auth.js. Generate with `openssl rand -base64 32`. |
 | `ADMIN_EMAIL` | yes | The single admin login email. |
 | `ADMIN_PASSWORD` | yes* | Admin password (plain comparison). *Not needed if `ADMIN_PASSWORD_HASH` is set. |
@@ -116,20 +115,15 @@ Currency is **USD only**. There is **no spreadsheet import** — data is entered
 ## Deploy to Vercel
 
 1. Push this repo to GitHub and **Import** it into Vercel.
-2. Add the **Neon** integration (Vercel → Storage → Neon), or set `DATABASE_URL` /
-   `DIRECT_URL` manually. Neon's integration provisions the database and injects the URLs.
+2. Add the **Neon** database (Vercel → Storage → Create → Neon Postgres). The integration
+   provisions the database and injects `DATABASE_URL` automatically.
 3. Set the remaining env vars in **Project Settings → Environment Variables**:
    `AUTH_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` (or `ADMIN_PASSWORD_HASH`).
-4. Set the **Build Command** to:
-
-   ```
-   npm run vercel-build
-   ```
-
-   This runs `prisma generate && prisma migrate deploy && next build`, so the database schema
-   is applied on each deploy. (The default `npm run build` skips `migrate deploy` so local
-   builds don't require a reachable database.)
-5. Deploy. After the first deploy, optionally run the seed once against the production
+4. Deploy. The default build command (`prisma generate && prisma migrate deploy &&
+   next build`) creates the database tables automatically on each deploy — no build-command
+   override needed. (If the very first deploy ran before the database was attached, just
+   click **Redeploy** once the env vars are in place.)
+5. After the first successful deploy, optionally run the seed once against the production
    database from your machine:
 
    ```bash
