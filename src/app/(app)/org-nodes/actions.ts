@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/auth";
+import { ensureAdminUser } from "@/lib/user";
 import { orgNodeSchema } from "@/lib/validation";
 import { zodMessage, type ActionResult } from "@/lib/action-result";
 
@@ -18,7 +18,7 @@ export async function createOrgNode(input: unknown): Promise<ActionResult> {
       country: d.country,
       channelPartnerId:
         d.kind === "CHANNEL_PARTNER" ? d.channelPartnerId : null,
-      userId: getCurrentUserId(),
+      userId: await ensureAdminUser(),
     },
   });
   revalidatePath("/org-nodes");

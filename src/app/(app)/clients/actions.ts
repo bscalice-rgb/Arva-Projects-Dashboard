@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/auth";
+import { ensureAdminUser } from "@/lib/user";
 import {
   clientSchema,
   clientSeasonEditableSchema,
@@ -28,7 +28,7 @@ export async function createClient(
       defaultCrop: d.defaultCrop,
       millId: d.millId,
       region: d.region,
-      userId: getCurrentUserId(),
+      userId: await ensureAdminUser(),
     },
   });
 

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/auth";
+import { ensureAdminUser } from "@/lib/user";
 import { supplyShedSchema } from "@/lib/validation";
 import { zodMessage, type ActionResult } from "@/lib/action-result";
 
@@ -23,7 +23,7 @@ export async function createSupplyShed(
       acresNeeded: d.acresNeeded,
       hectaresNeeded: d.hectaresNeeded,
       enteredInCropForce: d.enteredInCropForce,
-      userId: getCurrentUserId(),
+      userId: await ensureAdminUser(),
     },
   });
   revalidatePath("/supply-sheds");

@@ -2,21 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/auth";
 import {
   channelPartnerSchema,
   channelPartnerSeasonSchema,
   revenueSharePayeeSchema,
 } from "@/lib/validation";
 import { zodMessage, type ActionResult } from "@/lib/action-result";
+import { ensureAdminUser } from "@/lib/user";
 
 export async function createChannelPartner(
   input: unknown,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = channelPartnerSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
+  const userId = await ensureAdminUser();
   const cp = await prisma.channelPartner.create({
-    data: { ...parsed.data, userId: getCurrentUserId() },
+    data: { ...parsed.data, userId },
   });
   revalidatePath("/channel-partners");
   revalidatePath("/org-nodes");

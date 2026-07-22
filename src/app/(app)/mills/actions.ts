@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/auth";
+import { ensureAdminUser } from "@/lib/user";
 import { millSchema } from "@/lib/validation";
 import { zodMessage, type ActionResult } from "@/lib/action-result";
 
@@ -10,7 +10,7 @@ export async function createMill(input: unknown): Promise<ActionResult> {
   const parsed = millSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
   await prisma.mill.create({
-    data: { ...parsed.data, userId: getCurrentUserId() },
+    data: { ...parsed.data, userId: await ensureAdminUser() },
   });
   revalidatePath("/mills");
   revalidatePath("/clients");
