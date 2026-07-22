@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Download, Sprout, ExternalLink } from "lucide-react";
+import { Plus, Download, Sprout, ExternalLink, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,8 @@ import { toCsv, downloadCsv, type CsvColumn } from "@/lib/csv";
 import type { ClientSeasonRow } from "./types";
 import { patchClientSeason } from "./actions";
 
+type SortKey = "client" | "progress" | "delivered" | "amount";
+
 export function ClientsTable({
   rows: initialRows,
   orgNodes,
@@ -70,6 +72,8 @@ export function ClientsTable({
   const [stage, setStage] = useState(""); // "", stage index as string, or "complete"
   const [payment, setPayment] = useState(""); // "", "done", "outstanding"
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   function patch(id: string, patch: Partial<ClientSeasonRow>) {
     setRows((prev) =>
@@ -108,6 +112,41 @@ export function ClientsTable({
       return true;
     });
   }, [rows, search, country, crop, cp, stage, payment]);
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const val = (r: ClientSeasonRow): number | string => {
+      switch (sortKey) {
+        case "client":
+          return r.clientName.toLowerCase();
+        case "progress":
+          return getPipelineStatus(r).stageIndex;
+        case "delivered":
+          return r.deliveredAcres ?? -1;
+        case "amount":
+          return r.amount ?? -1;
+        default:
+          return 0;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const av = val(a);
+      const bv = val(b);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "client" ? "asc" : "desc");
+    }
+  }
 
   function exportCsv() {
     const cols: CsvColumn<ClientSeasonRow>[] = [
@@ -268,12 +307,24 @@ export function ClientsTable({
             <TableHeader>
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-card">
-                  Client
+                  <SortHead
+                    label="Client"
+                    active={sortKey === "client"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("client")}
+                  />
                 </TableHead>
                 <TableHead>CP / Direct</TableHead>
                 <TableHead>Country</TableHead>
                 <TableHead>Crop</TableHead>
-                <TableHead>Progress</TableHead>
+                <TableHead>
+                  <SortHead
+                    label="Progress"
+                    active={sortKey === "progress"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("progress")}
+                  />
+                </TableHead>
                 <TableHead className={`${th} text-center`}>Legal ent.</TableHead>
                 <TableHead className={th}>Data</TableHead>
                 <TableHead className={`${th} text-center`}>Field req.</TableHead>
@@ -288,14 +339,30 @@ export function ClientsTable({
                 <TableHead className={th}>Contract</TableHead>
                 <TableHead className={`${th} text-center`}>Ctr appr.</TableHead>
                 <TableHead className={`${th} text-center`}>Bank</TableHead>
-                <TableHead className="text-right">Delivered ac</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">
+                  <SortHead
+                    label="Delivered ac"
+                    active={sortKey === "delivered"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("delivered")}
+                    align="right"
+                  />
+                </TableHead>
+                <TableHead className="text-right">
+                  <SortHead
+                    label="Amount"
+                    active={sortKey === "amount"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("amount")}
+                    align="right"
+                  />
+                </TableHead>
                 <TableHead className={`${th} text-center`}>Paid</TableHead>
                 <TableHead className="w-[44px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((r) => (
+              {sorted.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="sticky left-0 z-10 bg-card font-medium">
                     <Link
@@ -463,5 +530,35 @@ export function ClientsTable({
         seasonId={seasonId}
       />
     </div>
+  );
+}
+
+function SortHead({
+  label,
+  active,
+  dir,
+  onClick,
+  align = "left",
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+  align?: "left" | "right";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 hover:text-foreground ${
+        align === "right" ? "flex-row-reverse" : ""
+      } ${active ? "text-foreground" : ""}`}
+    >
+      {label}
+      <ChevronsUpDown className="h-3 w-3 opacity-60" />
+      {active && (
+        <span className="text-[10px]">{dir === "asc" ? "▲" : "▼"}</span>
+      )}
+    </button>
   );
 }
