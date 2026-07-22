@@ -61,7 +61,7 @@ Currency is **USD only**. There is **no spreadsheet import** — data is entered
 
    Fill in the values (see [Environment variables](#environment-variables)). For local dev
    you need a Postgres database — a local Postgres or a free Neon dev branch both work. Put
-   its connection string in `DATABASE_URL` (and `DIRECT_URL`).
+   its connection string in `DATABASE_URL`.
 
 3. **Create the schema**
 
