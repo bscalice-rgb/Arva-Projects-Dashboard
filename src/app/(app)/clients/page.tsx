@@ -21,16 +21,11 @@ export default async function ClientsPage() {
     );
   }
 
-  const [clientSeasons, orgNodes, mills, cps] = await Promise.all([
+  const [clientSeasons, mills, cps] = await Promise.all([
     prisma.clientSeason.findMany({
       where: { seasonId: season.id, client: { userId } },
       include: clientSeasonInclude,
       orderBy: { client: { name: "asc" } },
-    }),
-    prisma.orgNode.findMany({
-      where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, country: true },
     }),
     prisma.mill.findMany({
       where: { userId },
@@ -40,7 +35,7 @@ export default async function ClientsPage() {
     prisma.channelPartner.findMany({
       where: { userId },
       orderBy: { entityName: "asc" },
-      select: { entityName: true },
+      select: { id: true, entityName: true },
     }),
   ]);
 
@@ -54,7 +49,7 @@ export default async function ClientsPage() {
       />
       <ClientsTable
         rows={rows}
-        orgNodes={orgNodes}
+        channelPartners={cps}
         mills={mills}
         channelPartnerNames={cps.map((c) => c.entityName)}
         seasonId={season.id}

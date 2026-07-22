@@ -25,10 +25,11 @@ import {
   CheckboxField,
   TextField,
   TextAreaField,
+  LinkedAreaFields,
 } from "@/components/form-fields";
 import {
   ClientFormDialog,
-  type OrgNodeOption,
+  type CpOption,
   type MillOption,
   type ClientIdentity,
 } from "../client-form-dialog";
@@ -91,7 +92,7 @@ export function ClientDetail({
   orgNodeKind,
   channelPartnerName,
   millName,
-  orgNodes,
+  channelPartners,
   mills,
   seasonLinks,
   activeSeasonId,
@@ -105,7 +106,7 @@ export function ClientDetail({
   orgNodeKind: keyof typeof ORG_NODE_KIND_LABELS;
   channelPartnerName: string | null;
   millName: string | null;
-  orgNodes: OrgNodeOption[];
+  channelPartners: CpOption[];
   mills: MillOption[];
   seasonLinks: SeasonLink[];
   activeSeasonId: string | null;
@@ -332,18 +333,13 @@ export function ClientDetail({
                 onChange={(v) => set("crop", v as never)}
                 options={CROP_OPTIONS}
               />
-              <div className="grid grid-cols-2 gap-4">
-                <NumberField
-                  label="Enrolled hectares"
-                  value={form.enrolledHectares}
-                  onChange={(v) => set("enrolledHectares", v)}
-                />
-                <NumberField
-                  label="Enrolled acres"
-                  value={form.enrolledAcres}
-                  onChange={(v) => set("enrolledAcres", v)}
-                />
-              </div>
+              <LinkedAreaFields
+                label="Enrolled area"
+                acres={form.enrolledAcres}
+                hectares={form.enrolledHectares}
+                onAcres={(v) => set("enrolledAcres", v)}
+                onHectares={(v) => set("enrolledHectares", v)}
+              />
             </Section>
 
             <Section title="Data & QA/QC">
@@ -454,17 +450,14 @@ export function ClientDetail({
                   value={form.tCO2e}
                   onChange={(v) => set("tCO2e", v)}
                 />
-                <NumberField
-                  label="Delivered hectares"
-                  value={form.deliveredHectares}
-                  onChange={(v) => set("deliveredHectares", v)}
-                />
-                <NumberField
-                  label="Delivered acres"
-                  value={form.deliveredAcres}
-                  onChange={(v) => set("deliveredAcres", v)}
-                />
               </div>
+              <LinkedAreaFields
+                label="Delivered area"
+                acres={form.deliveredAcres}
+                hectares={form.deliveredHectares}
+                onAcres={(v) => set("deliveredAcres", v)}
+                onHectares={(v) => set("deliveredHectares", v)}
+              />
               <NumberField
                 label="Amount (grower payment, USD)"
                 value={form.amount}
@@ -506,7 +499,7 @@ export function ClientDetail({
       <ClientFormDialog
         open={editOpen}
         onOpenChange={setEditOpen}
-        orgNodes={orgNodes}
+        channelPartners={channelPartners}
         mills={mills}
         seasonId={activeSeasonId}
         editing={identity}

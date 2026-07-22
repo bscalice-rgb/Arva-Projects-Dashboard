@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ensureAdminUser } from "@/lib/user";
 import {
+  resolveOrgNodeForClient,
+  cleanupOrphanDirectOrgNode,
+} from "@/lib/org-node";
+import {
   clientSchema,
   clientSeasonEditableSchema,
   clientSeasonPatchSchema,
@@ -19,9 +23,16 @@ export async function createClient(
   if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
   const d = parsed.data;
 
+  await ensureAdminUser();
+  const orgNodeId = await resolveOrgNodeForClient({
+    channelPartnerId: d.channelPartnerId,
+    name: d.name,
+    country: d.country,
+  });
+
   const client = await prisma.client.create({
     data: {
-      orgNodeId: d.orgNodeId,
+      orgNodeId,
       name: d.name,
       legalEntity: d.legalEntity,
       country: d.country,
@@ -41,7 +52,7 @@ export async function createClient(
   }
 
   revalidatePath("/clients");
-  revalidatePath("/org-nodes");
+  revalidatePath("/channel-partners");
   return { ok: true, data: { id: client.id } };
 }
 
@@ -52,10 +63,24 @@ export async function updateClient(
   const parsed = clientSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
   const d = parsed.data;
+
+  const existing = await prisma.client.findUnique({
+    where: { id },
+    select: { orgNodeId: true },
+  });
+  const prevOrgNodeId = existing?.orgNodeId ?? null;
+
+  const orgNodeId = await resolveOrgNodeForClient({
+    channelPartnerId: d.channelPartnerId,
+    name: d.name,
+    country: d.country,
+    currentOrgNodeId: prevOrgNodeId,
+  });
+
   await prisma.client.update({
     where: { id },
     data: {
-      orgNodeId: d.orgNodeId,
+      orgNodeId,
       name: d.name,
       legalEntity: d.legalEntity,
       country: d.country,
@@ -64,8 +89,15 @@ export async function updateClient(
       region: d.region,
     },
   });
+
+  // If the client moved off a dedicated direct node, clean it up.
+  if (prevOrgNodeId && prevOrgNodeId !== orgNodeId) {
+    await cleanupOrphanDirectOrgNode(prevOrgNodeId);
+  }
+
   revalidatePath("/clients");
   revalidatePath(`/clients/${id}`);
+  revalidatePath("/channel-partners");
   return { ok: true };
 }
 

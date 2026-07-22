@@ -24,9 +24,9 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import {
   SelectField,
-  NumberField,
   TextField,
   CheckboxField,
+  LinkedAreaFields,
 } from "@/components/form-fields";
 import {
   CROP_OPTIONS,
@@ -348,18 +348,13 @@ export function SupplyShedsClient({
               onChange={(v) => setForm((f) => ({ ...f, region: v }))}
               placeholder="Match clients' region exactly"
             />
-            <div className="grid grid-cols-2 gap-4">
-              <NumberField
-                label="Acres needed"
-                value={form.acresNeeded}
-                onChange={(v) => setForm((f) => ({ ...f, acresNeeded: v }))}
-              />
-              <NumberField
-                label="Hectares needed"
-                value={form.hectaresNeeded}
-                onChange={(v) => setForm((f) => ({ ...f, hectaresNeeded: v }))}
-              />
-            </div>
+            <LinkedAreaFields
+              label="Area needed (target)"
+              acres={form.acresNeeded}
+              hectares={form.hectaresNeeded}
+              onAcres={(v) => setForm((f) => ({ ...f, acresNeeded: v }))}
+              onHectares={(v) => setForm((f) => ({ ...f, hectaresNeeded: v }))}
+            />
             <CheckboxField
               label="Entered in CropForce"
               checked={form.enteredInCropForce}

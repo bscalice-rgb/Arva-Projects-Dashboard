@@ -37,7 +37,7 @@ export default async function CpDetailPage({
     );
   }
 
-  const [cpSeason, clientSeasons] = await Promise.all([
+  const [cpSeason, clientSeasons, mills] = await Promise.all([
     prisma.channelPartnerSeason.findUnique({
       where: {
         channelPartnerId_seasonId: {
@@ -54,6 +54,11 @@ export default async function CpDetailPage({
       },
       include: { client: { select: { id: true, name: true } } },
       orderBy: { client: { name: "asc" } },
+    }),
+    prisma.mill.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, crop: true },
     }),
   ]);
 
@@ -92,6 +97,7 @@ export default async function CpDetailPage({
       agg={agg}
       payees={cpSeason?.payees ?? []}
       clients={clients}
+      mills={mills}
     />
   );
 }

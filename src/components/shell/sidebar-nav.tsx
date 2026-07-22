@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Sprout,
   Users,
-  Network,
   Target,
   Factory,
   CalendarRange,
@@ -15,9 +14,8 @@ import {
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/clients", label: "Clients / Growers", icon: Sprout },
   { href: "/channel-partners", label: "Channel Partners", icon: Users },
-  { href: "/org-nodes", label: "Org Nodes", icon: Network },
+  { href: "/clients", label: "Growers", icon: Sprout },
   { href: "/supply-sheds", label: "Supply Sheds", icon: Target },
   { href: "/mills", label: "Mills / Refineries", icon: Factory },
   { href: "/seasons", label: "Seasons", icon: CalendarRange },

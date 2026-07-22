@@ -21,7 +21,7 @@ import { SelectField } from "@/components/form-fields";
 import { InlineBool, InlineEnum } from "./inline-controls";
 import {
   ClientFormDialog,
-  type OrgNodeOption,
+  type CpOption,
   type MillOption,
 } from "./client-form-dialog";
 import {
@@ -47,14 +47,14 @@ type SortKey = "client" | "progress" | "delivered" | "amount";
 
 export function ClientsTable({
   rows: initialRows,
-  orgNodes,
+  channelPartners,
   mills,
   channelPartnerNames,
   seasonId,
   seasonLabel,
 }: {
   rows: ClientSeasonRow[];
-  orgNodes: OrgNodeOption[];
+  channelPartners: CpOption[];
   mills: MillOption[];
   channelPartnerNames: string[];
   seasonId: string | null;
@@ -525,7 +525,7 @@ export function ClientsTable({
       <ClientFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        orgNodes={orgNodes}
+        channelPartners={channelPartners}
         mills={mills}
         seasonId={seasonId}
       />

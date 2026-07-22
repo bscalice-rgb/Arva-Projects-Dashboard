@@ -94,7 +94,8 @@ export const millSchema = z.object({
 export type MillInput = z.infer<typeof millSchema>;
 
 export const clientSchema = z.object({
-  orgNodeId: nonEmptyString,
+  // Enrollment channel: a Channel Partner id, or null for a direct grower.
+  channelPartnerId: optionalString,
   name: nonEmptyString,
   legalEntity: optionalString,
   country: z.nativeEnum(Country),

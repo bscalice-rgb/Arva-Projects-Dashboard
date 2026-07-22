@@ -9,6 +9,7 @@ import {
 } from "@/lib/validation";
 import { zodMessage, type ActionResult } from "@/lib/action-result";
 import { ensureAdminUser } from "@/lib/user";
+import { ensureCpOrgNode } from "@/lib/org-node";
 
 export async function createChannelPartner(
   input: unknown,
@@ -19,8 +20,10 @@ export async function createChannelPartner(
   const cp = await prisma.channelPartner.create({
     data: { ...parsed.data, userId },
   });
+  // A Channel Partner is its own Org Node — create it automatically.
+  await ensureCpOrgNode(cp.id);
   revalidatePath("/channel-partners");
-  revalidatePath("/org-nodes");
+  revalidatePath("/clients");
   return { ok: true, data: { id: cp.id } };
 }
 

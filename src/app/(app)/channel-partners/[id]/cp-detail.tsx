@@ -55,6 +55,11 @@ import {
   deletePayee,
 } from "../actions";
 import type { VolumeAgg } from "@/lib/rollups";
+import {
+  ClientFormDialog,
+  type MillOption,
+} from "@/app/(app)/clients/client-form-dialog";
+import { Plus as PlusIcon } from "lucide-react";
 
 type ClientLine = {
   clientId: string;
@@ -76,6 +81,7 @@ export function CpDetail({
   agg,
   payees,
   clients,
+  mills,
 }: {
   cpId: string;
   cpName: string;
@@ -94,9 +100,11 @@ export function CpDetail({
   agg: VolumeAgg;
   payees: RevenueSharePayee[];
   clients: ClientLine[];
+  mills: MillOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [growerOpen, setGrowerOpen] = useState(false);
 
   if (!cpSeason) {
     return (
@@ -190,10 +198,13 @@ export function CpDetail({
 
       {/* Clients under CP */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between">
           <CardTitle className="text-base">
-            Clients under this Channel Partner — {seasonLabel}
+            Growers under this Channel Partner — {seasonLabel}
           </CardTitle>
+          <Button size="sm" onClick={() => setGrowerOpen(true)}>
+            <PlusIcon className="h-4 w-4" /> New grower
+          </Button>
         </CardHeader>
         <CardContent>
           {clients.length === 0 ? (
@@ -241,6 +252,15 @@ export function CpDetail({
           )}
         </CardContent>
       </Card>
+
+      <ClientFormDialog
+        open={growerOpen}
+        onOpenChange={setGrowerOpen}
+        channelPartners={[]}
+        mills={mills}
+        seasonId={seasonId}
+        lockedChannelPartnerId={cpId}
+      />
     </Wrapper>
   );
 }

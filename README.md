@@ -17,11 +17,14 @@ per-**season** data so you can carry a grower or CP forward from one year to the
 
 ## Features
 
-- **Org Nodes & Channel Partners** — CRUD, filters, per-season compliance, and flexible
-  **revenue share** (one or more CP/Referrer payees, percentage or fixed amount).
-- **Clients / Growers** — per-season table with rich filters, **inline pipeline editing**,
-  sortable columns and CSV export; a per-client detail view with the ordered pipeline
-  stepper (current stage highlighted) and grouped editors for pipeline + outcomes.
+- **Channel Partners** — CRUD, filters, per-season compliance, and flexible **revenue
+  share** (one or more CP/Referrer payees, percentage or fixed amount). A CP is its own
+  Org Node automatically; growers can be added straight from the CP.
+- **Growers (Clients)** — enrolled under a Channel Partner or as a direct grower (the Org
+  Node is managed automatically — never created by hand). Per-season table with rich
+  filters, **inline pipeline editing**, sortable columns and CSV export; a per-grower detail
+  view with the ordered pipeline stepper (current stage highlighted), linked acres⇄hectares
+  inputs, and grouped editors for pipeline + outcomes.
 - **Supply Sheds** — per-season targets by CP × crop × country × region; **loaded volume
   auto-rolls up** from delivered client area, balance can go negative (over-delivery).
 - **Seasons & carry-forward** — create program years and carry selected growers/CPs into a
@@ -155,7 +158,8 @@ src/
     login/               # sign-in
     (app)/               # authenticated shell + all modules
       page.tsx           # dashboard
-      clients/ channel-partners/ org-nodes/ mills/ supply-sheds/ seasons/
+      clients/ channel-partners/ mills/ supply-sheds/ seasons/
+  lib/org-node.ts          # automatic Org Node management (CP = node; direct = own node)
 ```
 
 ## Notes

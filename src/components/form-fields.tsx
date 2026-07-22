@@ -141,6 +141,69 @@ export function SelectField<T extends string>({
   );
 }
 
+import { acresToHectares, hectaresToAcres } from "@/lib/utils";
+
+/**
+ * Linked acres/hectares inputs — typing in one auto-fills the other.
+ * Either field can still be overridden manually afterwards.
+ */
+export function LinkedAreaFields({
+  label,
+  acres,
+  hectares,
+  onAcres,
+  onHectares,
+}: {
+  label: string;
+  acres: string;
+  hectares: string;
+  onAcres: (v: string) => void;
+  onHectares: (v: string) => void;
+}) {
+  const toStr = (n: number | null) => (n == null ? "" : String(n));
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Input
+            type="number"
+            inputMode="decimal"
+            step="any"
+            placeholder="Acres"
+            value={acres}
+            onChange={(e) => {
+              const v = e.target.value;
+              onAcres(v);
+              const n = Number(v);
+              onHectares(v === "" || Number.isNaN(n) ? "" : toStr(acresToHectares(n)));
+            }}
+          />
+          <span className="mt-1 block text-xs text-muted-foreground">Acres</span>
+        </div>
+        <div>
+          <Input
+            type="number"
+            inputMode="decimal"
+            step="any"
+            placeholder="Hectares"
+            value={hectares}
+            onChange={(e) => {
+              const v = e.target.value;
+              onHectares(v);
+              const n = Number(v);
+              onAcres(v === "" || Number.isNaN(n) ? "" : toStr(hectaresToAcres(n)));
+            }}
+          />
+          <span className="mt-1 block text-xs text-muted-foreground">
+            Hectares
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CheckboxField({
   label,
   checked,
