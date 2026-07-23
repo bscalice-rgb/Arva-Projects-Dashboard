@@ -2,8 +2,36 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { seasonSchema } from "@/lib/validation";
+import { seasonSchema, regionSchema } from "@/lib/validation";
 import { zodMessage, type ActionResult } from "@/lib/action-result";
+import { ensureAdminUser } from "@/lib/user";
+
+// ---- Countries & Regions (managed list) ----
+
+export async function createRegion(input: unknown): Promise<ActionResult> {
+  const parsed = regionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
+  const userId = await ensureAdminUser();
+  const existing = await prisma.region.findFirst({
+    where: { userId, country: parsed.data.country, name: parsed.data.name },
+  });
+  if (existing) {
+    return { ok: false, error: "That region already exists for this country." };
+  }
+  await prisma.region.create({ data: { ...parsed.data, userId } });
+  revalidatePath("/seasons");
+  revalidatePath("/clients");
+  revalidatePath("/allotments");
+  return { ok: true };
+}
+
+export async function deleteRegion(id: string): Promise<ActionResult> {
+  await prisma.region.delete({ where: { id } });
+  revalidatePath("/seasons");
+  revalidatePath("/clients");
+  revalidatePath("/allotments");
+  return { ok: true };
+}
 
 export async function createSeason(input: unknown): Promise<ActionResult> {
   const parsed = seasonSchema.safeParse(input);
@@ -129,7 +157,7 @@ export async function carryForward(input: {
       data: {
         clientId,
         seasonId: targetSeasonId,
-        crop: source?.crop ?? client.defaultCrop,
+        crops: source?.crops ?? client.defaultCrops,
         // Only the W-8 carries over.
         w8Type: source?.w8Type ?? null,
         w8InCropForce: source?.w8InCropForce ?? false,

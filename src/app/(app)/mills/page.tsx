@@ -23,7 +23,6 @@ export default async function MillsPage() {
         mills={mills.map((m) => ({
           id: m.id,
           name: m.name,
-          type: m.type,
           crop: m.crop,
           country: m.country,
           region: m.region,

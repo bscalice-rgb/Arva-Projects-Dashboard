@@ -51,11 +51,11 @@ enum Country {
 enum Crop {
   CORN
   SOYBEANS
-  CORN_SOYBEANS
   SUGARCANE
   AFRICAN_OIL_PALM
   SUGARBEETS
-  WHEAT_BARLEY
+  WHEAT
+  BARLEY
 }
 
 enum DataStatus {
@@ -97,11 +97,6 @@ enum ContractStatus {
   SIGNED
 }
 
-enum MillType {
-  MILL
-  REFINERY
-}
-
 enum RevSharePayeeType {
   CP
   REFERRER
@@ -127,6 +122,26 @@ model User {
   clients         Client[]
   mills           Mill[]
   supplySheds     SupplyShed[]
+  regions         Region[]
+}
+
+// ---------------------------------------------------------------------------
+// Identity: Country regions / states (managed list; dropdowns adapt by country)
+// ---------------------------------------------------------------------------
+
+model Region {
+  id        String   @id @default(cuid())
+  country   Country
+  name      String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  user        User?        @relation(fields: [userId], references: [id])
+  clients     Client[]     @relation("ClientRegions")
+  supplySheds SupplyShed[]
+
+  @@unique([userId, country, name])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
@@ -195,21 +210,21 @@ model OrgNode {
 // ---------------------------------------------------------------------------
 
 model Client {
-  id          String   @id @default(cuid())
-  orgNodeId   String
-  name        String
-  legalEntity String?
-  country     Country
-  defaultCrop Crop
-  millId      String?
-  region      String?
-  userId      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  orgNodeId    String
+  name         String
+  legalEntity  String?
+  country      Country
+  defaultCrops Crop[]
+  millId       String?
+  userId       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   orgNode OrgNode        @relation(fields: [orgNodeId], references: [id], onDelete: Cascade)
   mill    Mill?          @relation(fields: [millId], references: [id])
   user    User?          @relation(fields: [userId], references: [id])
+  regions Region[]       @relation("ClientRegions")
   seasons ClientSeason[]
 
   @@index([orgNodeId])
@@ -224,7 +239,6 @@ model Client {
 model Mill {
   id        String   @id @default(cuid())
   name      String
-  type      MillType @default(MILL)
   crop      Crop
   country   Country
   region    String?
@@ -291,7 +305,7 @@ model ClientSeason {
   id       String @id @default(cuid())
   clientId String
   seasonId String
-  crop     Crop
+  crops    Crop[]
 
   // Planned / enrolled area
   enrolledHectares Float?
@@ -351,7 +365,7 @@ model SupplyShed {
   country            Country
   channelPartnerId   String?
   crop               Crop
-  region             String?
+  regionId           String?
   acresNeeded        Float    @default(0)
   hectaresNeeded     Float    @default(0)
   enteredInCropForce Boolean  @default(false)
@@ -361,8 +375,10 @@ model SupplyShed {
 
   season         Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   channelPartner ChannelPartner? @relation(fields: [channelPartnerId], references: [id])
+  region         Region?         @relation(fields: [regionId], references: [id])
   user           User?           @relation(fields: [userId], references: [id])
 
   @@index([seasonId])
   @@index([channelPartnerId])
+  @@index([regionId])
 }

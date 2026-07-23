@@ -36,7 +36,7 @@ export default async function DashboardPage() {
             id: true,
             name: true,
             country: true,
-            region: true,
+            regions: { select: { id: true } },
             orgNode: {
               select: {
                 channelPartnerId: true,
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
         channelPartnerId: true,
         crop: true,
         country: true,
-        region: true,
+        regionId: true,
         acresNeeded: true,
         hectaresNeeded: true,
       },
@@ -77,7 +77,7 @@ export default async function DashboardPage() {
       clientId: cs.client.id,
       clientName: cs.client.name,
       country: cs.client.country,
-      crop: cs.crop,
+      crops: cs.crops,
       cpKey: cpId ?? "__direct__",
       cpName: cpId
         ? cs.client.orgNode.channelPartner?.entityName ?? "Channel Partner"
@@ -115,14 +115,14 @@ export default async function DashboardPage() {
     };
   });
 
-  // Supply-shed loaded auto-rolled from delivered client area.
+  // Allotment loaded auto-rolled from delivered grower area.
   const csForShed = clientSeasons.map((cs) => ({
-    crop: cs.crop,
+    crops: cs.crops,
     deliveredAcres: cs.deliveredAcres,
     deliveredHectares: cs.deliveredHectares,
     client: {
       country: cs.client.country,
-      region: cs.client.region,
+      regionIds: cs.client.regions.map((r) => r.id),
       orgNode: { channelPartnerId: cs.client.orgNode.channelPartnerId },
     },
   }));

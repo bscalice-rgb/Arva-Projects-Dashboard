@@ -58,6 +58,7 @@ import type { VolumeAgg } from "@/lib/rollups";
 import {
   ClientFormDialog,
   type MillOption,
+  type RegionOption,
 } from "@/app/(app)/clients/client-form-dialog";
 import { Plus as PlusIcon } from "lucide-react";
 
@@ -82,6 +83,7 @@ export function CpDetail({
   payees,
   clients,
   mills,
+  regions,
 }: {
   cpId: string;
   cpName: string;
@@ -101,6 +103,7 @@ export function CpDetail({
   payees: RevenueSharePayee[];
   clients: ClientLine[];
   mills: MillOption[];
+  regions: RegionOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -258,6 +261,7 @@ export function CpDetail({
         onOpenChange={setGrowerOpen}
         channelPartners={[]}
         mills={mills}
+        regions={regions}
         seasonId={seasonId}
         lockedChannelPartnerId={cpId}
       />

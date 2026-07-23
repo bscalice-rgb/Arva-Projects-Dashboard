@@ -4,7 +4,7 @@ export type DashClient = {
   clientId: string;
   clientName: string;
   country: Country;
-  crop: Crop;
+  crops: Crop[];
   cpKey: string; // channelPartnerId or "__direct__"
   cpName: string; // CP entity name or "Direct"
   stageIndex: number;

@@ -36,9 +36,9 @@ export async function createClient(
       name: d.name,
       legalEntity: d.legalEntity,
       country: d.country,
-      defaultCrop: d.defaultCrop,
+      defaultCrops: d.defaultCrops,
       millId: d.millId,
-      region: d.region,
+      regions: { connect: d.regionIds.map((rid) => ({ id: rid })) },
       userId: await ensureAdminUser(),
     },
   });
@@ -47,7 +47,7 @@ export async function createClient(
     await prisma.clientSeason.upsert({
       where: { clientId_seasonId: { clientId: client.id, seasonId } },
       update: {},
-      create: { clientId: client.id, seasonId, crop: d.defaultCrop },
+      create: { clientId: client.id, seasonId, crops: d.defaultCrops },
     });
   }
 
@@ -84,9 +84,9 @@ export async function updateClient(
       name: d.name,
       legalEntity: d.legalEntity,
       country: d.country,
-      defaultCrop: d.defaultCrop,
+      defaultCrops: d.defaultCrops,
       millId: d.millId,
-      region: d.region,
+      regions: { set: d.regionIds.map((rid) => ({ id: rid })) },
     },
   });
 
@@ -117,7 +117,7 @@ export async function addClientToSeason(
   await prisma.clientSeason.upsert({
     where: { clientId_seasonId: { clientId, seasonId } },
     update: {},
-    create: { clientId, seasonId, crop: client.defaultCrop },
+    create: { clientId, seasonId, crops: client.defaultCrops },
   });
   revalidatePath("/clients");
   revalidatePath(`/clients/${clientId}`);
@@ -145,7 +145,7 @@ export async function saveClientSeason(
   });
   revalidatePath("/clients");
   revalidatePath(`/clients/${cs.clientId}`);
-  revalidatePath("/supply-sheds");
+  revalidatePath("/allotments");
   revalidatePath("/");
   return { ok: true };
 }
@@ -163,7 +163,7 @@ export async function patchClientSeason(
   });
   revalidatePath("/clients");
   revalidatePath(`/clients/${cs.clientId}`);
-  revalidatePath("/supply-sheds");
+  revalidatePath("/allotments");
   revalidatePath("/");
   return { ok: true };
 }

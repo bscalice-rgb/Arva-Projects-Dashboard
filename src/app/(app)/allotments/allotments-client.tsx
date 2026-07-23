@@ -24,7 +24,6 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import {
   SelectField,
-  TextField,
   CheckboxField,
   LinkedAreaFields,
 } from "@/components/form-fields";
@@ -49,7 +48,8 @@ export type ShedRow = {
   channelPartnerId: string | null;
   channelPartnerName: string | null;
   crop: Crop;
-  region: string | null;
+  regionId: string | null;
+  regionName: string | null;
   acresNeeded: number;
   hectaresNeeded: number;
   acresLoaded: number;
@@ -58,25 +58,28 @@ export type ShedRow = {
 };
 
 type CpOption = { id: string; entityName: string };
+type RegionOption = { id: string; name: string; country: Country };
 
 const empty = {
   country: "" as Country | "",
   channelPartnerId: "",
   crop: "CORN" as Crop,
-  region: "",
+  regionId: "",
   acresNeeded: "",
   hectaresNeeded: "",
   enteredInCropForce: false,
 };
 
-export function SupplyShedsClient({
+export function AllotmentsClient({
   rows,
   channelPartners,
+  regions,
   seasonId,
   seasonLabel,
 }: {
   rows: ShedRow[];
   channelPartners: CpOption[];
+  regions: RegionOption[];
   seasonId: string;
   seasonLabel: string;
 }) {
@@ -100,7 +103,7 @@ export function SupplyShedsClient({
       country: r.country,
       channelPartnerId: r.channelPartnerId ?? "",
       crop: r.crop,
-      region: r.region ?? "",
+      regionId: r.regionId ?? "",
       acresNeeded: String(r.acresNeeded),
       hectaresNeeded: String(r.hectaresNeeded),
       enteredInCropForce: r.enteredInCropForce,
@@ -114,7 +117,7 @@ export function SupplyShedsClient({
       country: form.country || undefined,
       channelPartnerId: form.channelPartnerId || null,
       crop: form.crop,
-      region: form.region || null,
+      regionId: form.regionId || null,
       acresNeeded: form.acresNeeded,
       hectaresNeeded: form.hectaresNeeded,
       enteredInCropForce: form.enteredInCropForce,
@@ -129,7 +132,7 @@ export function SupplyShedsClient({
     });
   }
   function onDelete(r: ShedRow) {
-    if (!confirm("Delete this supply shed target?")) return;
+    if (!confirm("Delete this allotment?")) return;
     startTransition(async () => {
       const res = await deleteSupplyShed(r.id);
       if (!res.ok) alert(res.error);
@@ -156,7 +159,7 @@ export function SupplyShedsClient({
         value: (r) => r.channelPartnerName ?? "Direct",
       },
       { header: "Crop", value: (r) => CROP_LABELS[r.crop] },
-      { header: "Region", value: (r) => r.region },
+      { header: "Region", value: (r) => r.regionName },
       { header: "Acres needed", value: (r) => Math.round(r.acresNeeded) },
       { header: "Acres loaded", value: (r) => Math.round(r.acresLoaded) },
       {
@@ -172,7 +175,7 @@ export function SupplyShedsClient({
       { header: "In CropForce", value: (r) => (r.enteredInCropForce ? "Y" : "N") },
     ];
     downloadCsv(
-      `supply-sheds-${seasonLabel.replace(/\s+/g, "-").toLowerCase()}.csv`,
+      `allotments-${seasonLabel.replace(/\s+/g, "-").toLowerCase()}.csv`,
       toCsv(rows, cols),
     );
   }
@@ -209,8 +212,8 @@ export function SupplyShedsClient({
       {rows.length === 0 ? (
         <EmptyState
           icon={Target}
-          title="No supply shed targets"
-          description="Define per-season area targets by Channel Partner × crop × country × region. Loaded volume rolls up automatically from delivered client area."
+          title="No allotments yet"
+          description="Define per-season area targets by Channel Partner × crop × country × region. Loaded volume rolls up automatically from delivered grower area."
           action={
             <Button onClick={openCreate}>
               <Plus className="h-4 w-4" /> New target
@@ -251,7 +254,7 @@ export function SupplyShedsClient({
                     <TableCell>{CROP_LABELS[r.crop]}</TableCell>
                     <TableCell>{COUNTRY_LABELS[r.country]}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {r.region ?? "—"}
+                      {r.regionName ?? "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatNumber(needed)}
@@ -310,7 +313,7 @@ export function SupplyShedsClient({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingId ? "Edit supply shed target" : "New supply shed target"}
+              {editingId ? "Edit allotment" : "New allotment"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -337,16 +340,24 @@ export function SupplyShedsClient({
                 required
                 value={form.country || undefined}
                 onChange={(v) =>
-                  setForm((f) => ({ ...f, country: v as Country }))
+                  setForm((f) => ({
+                    ...f,
+                    country: v as Country,
+                    regionId: "",
+                  }))
                 }
                 options={COUNTRY_OPTIONS}
               />
             </div>
-            <TextField
-              label="Region / Province"
-              value={form.region}
-              onChange={(v) => setForm((f) => ({ ...f, region: v }))}
-              placeholder="Match clients' region exactly"
+            <SelectField
+              label="Region / state"
+              value={form.regionId || undefined}
+              onChange={(v) => setForm((f) => ({ ...f, regionId: v }))}
+              includeEmpty
+              emptyLabel="All regions in country"
+              options={regions
+                .filter((rg) => rg.country === form.country)
+                .map((rg) => ({ value: rg.id, label: rg.name }))}
             />
             <LinkedAreaFields
               label="Area needed (target)"

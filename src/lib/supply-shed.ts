@@ -1,44 +1,41 @@
 import type { Country, Crop } from "@prisma/client";
 
-export function normalizeRegion(r: string | null | undefined): string {
-  return (r ?? "").trim().toLowerCase();
-}
-
 type ShedKeyish = {
   channelPartnerId: string | null;
   crop: Crop;
   country: Country;
-  region: string | null;
+  regionId: string | null;
 };
 
 type ClientSeasonForMatch = {
-  crop: Crop;
+  crops: Crop[];
   deliveredAcres: number | null;
   deliveredHectares: number | null;
   client: {
     country: Country;
-    region: string | null;
+    regionIds: string[];
     orgNode: { channelPartnerId: string | null };
   };
 };
 
-/** Does a delivered client-season count toward this supply shed? */
+/** Does a delivered client-season count toward this allotment (supply shed)? */
 export function matchesShed(
   shed: ShedKeyish,
   cs: ClientSeasonForMatch,
 ): boolean {
-  return (
+  const cpMatch =
     (shed.channelPartnerId ?? null) ===
-      (cs.client.orgNode.channelPartnerId ?? null) &&
-    shed.crop === cs.crop &&
-    shed.country === cs.client.country &&
-    normalizeRegion(shed.region) === normalizeRegion(cs.client.region)
-  );
+    (cs.client.orgNode.channelPartnerId ?? null);
+  const cropMatch = cs.crops.includes(shed.crop);
+  const countryMatch = shed.country === cs.client.country;
+  const regionMatch =
+    shed.regionId == null || cs.client.regionIds.includes(shed.regionId);
+  return cpMatch && cropMatch && countryMatch && regionMatch;
 }
 
 export type ShedLoaded = { loadedAcres: number; loadedHectares: number };
 
-/** Auto-roll-up loaded (delivered) area per supply shed. */
+/** Auto-roll-up loaded (delivered) area per allotment. */
 export function computeShedLoaded<T extends ShedKeyish & { id: string }>(
   sheds: T[],
   clientSeasons: ClientSeasonForMatch[],

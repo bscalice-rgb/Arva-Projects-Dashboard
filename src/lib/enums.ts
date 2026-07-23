@@ -13,7 +13,6 @@ import {
   EccStatus,
   W8Type,
   ContractStatus,
-  MillType,
   RevSharePayeeType,
   RevShareBasis,
 } from "@prisma/client";
@@ -63,11 +62,11 @@ export const COUNTRY_LABELS: Record<Country, string> = {
 export const CROP_LABELS: Record<Crop, string> = {
   CORN: "Corn",
   SOYBEANS: "Soybeans",
-  CORN_SOYBEANS: "Corn / Soybeans",
   SUGARCANE: "Sugarcane",
   AFRICAN_OIL_PALM: "African Oil Palm",
   SUGARBEETS: "Sugarbeets",
-  WHEAT_BARLEY: "Wheat / Barley",
+  WHEAT: "Wheat",
+  BARLEY: "Barley",
 };
 
 /** Crops that require a mill/refinery link. */
@@ -112,11 +111,6 @@ export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
   SIGNED: "Signed",
 };
 
-export const MILL_TYPE_LABELS: Record<MillType, string> = {
-  MILL: "Mill",
-  REFINERY: "Refinery",
-};
-
 export const REV_SHARE_PAYEE_TYPE_LABELS: Record<RevSharePayeeType, string> = {
   CP: "Channel Partner",
   REFERRER: "Referrer",
@@ -139,6 +133,5 @@ export const EVIDENCING_OPTIONS = opts(EVIDENCING_LABELS);
 export const ECC_STATUS_OPTIONS = opts(ECC_STATUS_LABELS);
 export const W8_TYPE_OPTIONS = opts(W8_TYPE_LABELS);
 export const CONTRACT_STATUS_OPTIONS = opts(CONTRACT_STATUS_LABELS);
-export const MILL_TYPE_OPTIONS = opts(MILL_TYPE_LABELS);
 export const REV_SHARE_PAYEE_TYPE_OPTIONS = opts(REV_SHARE_PAYEE_TYPE_LABELS);
 export const REV_SHARE_BASIS_OPTIONS = opts(REV_SHARE_BASIS_LABELS);

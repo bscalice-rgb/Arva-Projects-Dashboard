@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Factory, Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -24,20 +23,17 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import { TextField, SelectField, TextAreaField } from "@/components/form-fields";
 import {
-  MILL_TYPE_OPTIONS,
-  MILL_TYPE_LABELS,
   CROP_OPTIONS,
   CROP_LABELS,
   COUNTRY_OPTIONS,
   COUNTRY_LABELS,
 } from "@/lib/enums";
-import type { MillType, Crop, Country } from "@prisma/client";
+import type { Crop, Country } from "@prisma/client";
 import { createMill, updateMill, deleteMill } from "./actions";
 
 type MillRow = {
   id: string;
   name: string;
-  type: MillType;
   crop: Crop;
   country: Country;
   region: string | null;
@@ -47,7 +43,6 @@ type MillRow = {
 
 const empty = {
   name: "",
-  type: "MILL" as MillType,
   crop: "SUGARCANE" as Crop,
   country: "" as Country | "",
   region: "",
@@ -72,7 +67,6 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
     setEditingId(row.id);
     setForm({
       name: row.name,
-      type: row.type,
       crop: row.crop,
       country: row.country,
       region: row.region ?? "",
@@ -86,7 +80,6 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
     startTransition(async () => {
       const payload = {
         name: form.name,
-        type: form.type,
         crop: form.crop,
         country: form.country || undefined,
         region: form.region || null,
@@ -134,7 +127,6 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
                 <TableHead>Crop</TableHead>
                 <TableHead>Country</TableHead>
                 <TableHead>Region</TableHead>
@@ -146,9 +138,6 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
               {mills.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">{m.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="muted">{MILL_TYPE_LABELS[m.type]}</Badge>
-                  </TableCell>
                   <TableCell>{CROP_LABELS[m.crop]}</TableCell>
                   <TableCell>{COUNTRY_LABELS[m.country]}</TableCell>
                   <TableCell className="text-muted-foreground">
@@ -194,20 +183,12 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
               value={form.name}
               onChange={(v) => setForm((f) => ({ ...f, name: v }))}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <SelectField
-                label="Type"
-                value={form.type}
-                onChange={(v) => setForm((f) => ({ ...f, type: v as MillType }))}
-                options={MILL_TYPE_OPTIONS}
-              />
-              <SelectField
-                label="Crop"
-                value={form.crop}
-                onChange={(v) => setForm((f) => ({ ...f, crop: v as Crop }))}
-                options={CROP_OPTIONS}
-              />
-            </div>
+            <SelectField
+              label="Crop"
+              value={form.crop}
+              onChange={(v) => setForm((f) => ({ ...f, crop: v as Crop }))}
+              options={CROP_OPTIONS}
+            />
             <div className="grid grid-cols-2 gap-4">
               <SelectField
                 label="Country"

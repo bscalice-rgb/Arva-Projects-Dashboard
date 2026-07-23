@@ -23,9 +23,10 @@ export type ClientSeasonRow = {
   channelPartnerName: string | null;
   millName: string | null;
   country: Country;
-  region: string | null;
+  regionIds: string[];
+  regionNames: string[];
 
-  crop: Crop;
+  crops: Crop[];
   enrolledHectares: number | null;
   enrolledAcres: number | null;
 
@@ -61,6 +62,7 @@ export const clientSeasonInclude = {
     include: {
       orgNode: { include: { channelPartner: true } },
       mill: true,
+      regions: true,
     },
   },
 } as const;
@@ -68,7 +70,7 @@ export const clientSeasonInclude = {
 type PrismaClientSeason = {
   id: string;
   clientId: string;
-  crop: Crop;
+  crops: Crop[];
   enrolledHectares: number | null;
   enrolledAcres: number | null;
   legalEntitySetup: boolean;
@@ -98,7 +100,6 @@ type PrismaClientSeason = {
     name: string;
     legalEntity: string | null;
     country: Country;
-    region: string | null;
     orgNodeId: string;
     orgNode: {
       id: string;
@@ -107,6 +108,7 @@ type PrismaClientSeason = {
       channelPartner: { entityName: string } | null;
     };
     mill: { name: string } | null;
+    regions: { id: string; name: string }[];
   };
 };
 
@@ -122,8 +124,9 @@ export function toClientSeasonRow(cs: PrismaClientSeason): ClientSeasonRow {
     channelPartnerName: cs.client.orgNode.channelPartner?.entityName ?? null,
     millName: cs.client.mill?.name ?? null,
     country: cs.client.country,
-    region: cs.client.region,
-    crop: cs.crop,
+    regionIds: cs.client.regions.map((r) => r.id),
+    regionNames: cs.client.regions.map((r) => r.name),
+    crops: cs.crops,
     enrolledHectares: cs.enrolledHectares,
     enrolledAcres: cs.enrolledAcres,
     legalEntitySetup: cs.legalEntitySetup,

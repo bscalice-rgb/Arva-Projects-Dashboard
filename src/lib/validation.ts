@@ -11,7 +11,6 @@ import {
   EccStatus,
   W8Type,
   ContractStatus,
-  MillType,
   RevSharePayeeType,
   RevShareBasis,
 } from "@prisma/client";
@@ -85,7 +84,6 @@ export type RevenueSharePayeeInput = z.infer<typeof revenueSharePayeeSchema>;
 
 export const millSchema = z.object({
   name: nonEmptyString,
-  type: z.nativeEnum(MillType),
   crop: z.nativeEnum(Crop),
   country: z.nativeEnum(Country),
   region: optionalString,
@@ -93,21 +91,27 @@ export const millSchema = z.object({
 });
 export type MillInput = z.infer<typeof millSchema>;
 
+export const regionSchema = z.object({
+  country: z.nativeEnum(Country),
+  name: nonEmptyString,
+});
+export type RegionInput = z.infer<typeof regionSchema>;
+
 export const clientSchema = z.object({
   // Enrollment channel: a Channel Partner id, or null for a direct grower.
   channelPartnerId: optionalString,
   name: nonEmptyString,
   legalEntity: optionalString,
   country: z.nativeEnum(Country),
-  defaultCrop: z.nativeEnum(Crop),
+  defaultCrops: z.array(z.nativeEnum(Crop)).default([]),
   millId: optionalString,
-  region: optionalString,
+  regionIds: z.array(z.string()).default([]),
 });
 export type ClientInput = z.infer<typeof clientSchema>;
 
 // Editable per-season fields (pipeline + outcomes). Identity is separate.
 export const clientSeasonEditableSchema = z.object({
-  crop: z.nativeEnum(Crop),
+  crops: z.array(z.nativeEnum(Crop)).default([]),
   enrolledHectares: optionalNumber,
   enrolledAcres: optionalNumber,
 
@@ -151,7 +155,7 @@ export const supplyShedSchema = z.object({
   country: z.nativeEnum(Country),
   channelPartnerId: optionalString,
   crop: z.nativeEnum(Crop),
-  region: optionalString,
+  regionId: optionalString,
   acresNeeded: z.preprocess((v) => {
     if (v === "" || v == null) return 0;
     const n = typeof v === "string" ? Number(v) : v;

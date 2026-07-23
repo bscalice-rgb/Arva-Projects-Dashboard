@@ -35,13 +35,20 @@ import {
   SelectField,
   CheckboxField,
 } from "@/components/form-fields";
+import { Trash2 as TrashIcon, Plus as PlusIcon, MapPin } from "lucide-react";
+import { COUNTRY_OPTIONS, COUNTRY_LABELS } from "@/lib/enums";
+import type { Country } from "@prisma/client";
 import {
   createSeason,
   updateSeason,
   setActiveSeason,
   deleteSeason,
   carryForward,
+  createRegion,
+  deleteRegion,
 } from "./actions";
+
+type RegionRow = { id: string; name: string; country: Country };
 
 type SeasonRow = {
   id: string;
@@ -58,10 +65,12 @@ export function SeasonsClient({
   seasons,
   clientsBySeason,
   cpsBySeason,
+  regions,
 }: {
   seasons: SeasonRow[];
   clientsBySeason: Record<string, NameRef[]>;
   cpsBySeason: Record<string, NameRef[]>;
+  regions: RegionRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -197,6 +206,8 @@ export function SeasonsClient({
         </CardContent>
       </Card>
 
+      <RegionsManager regions={regions} />
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
@@ -238,6 +249,114 @@ export function SeasonsClient({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function RegionsManager({ regions }: { regions: RegionRow[] }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [country, setCountry] = useState<Country | "">("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const byCountry = new Map<Country, RegionRow[]>();
+  for (const r of regions) {
+    if (!byCountry.has(r.country)) byCountry.set(r.country, []);
+    byCountry.get(r.country)!.push(r);
+  }
+
+  function add() {
+    setError(null);
+    startTransition(async () => {
+      const res = await createRegion({ country: country || undefined, name });
+      if (!res.ok) return setError(res.error);
+      setName("");
+      router.refresh();
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <MapPin className="h-4 w-4" /> Countries & Regions
+        </CardTitle>
+        <CardDescription>
+          Set up the states/regions available for each country. Growers and
+          allotments pick from this list, filtered by their country.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="w-full sm:w-56">
+            <SelectField
+              label="Country"
+              value={country || undefined}
+              onChange={(v) => setCountry(v as Country)}
+              options={COUNTRY_OPTIONS}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1.5 block text-sm font-medium">
+              Region / state
+            </label>
+            <div className="flex gap-2">
+              <input
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                placeholder="e.g. Riau"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <Button
+                onClick={add}
+                disabled={pending || !country || !name.trim()}
+              >
+                <PlusIcon className="h-4 w-4" /> Add
+              </Button>
+            </div>
+          </div>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {regions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No regions yet. Add the states/provinces you operate in.
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[...byCountry.entries()].map(([c, list]) => (
+              <div key={c} className="rounded-md border p-3">
+                <p className="mb-2 text-sm font-medium">{COUNTRY_LABELS[c]}</p>
+                <div className="flex flex-wrap gap-2">
+                  {list.map((r) => (
+                    <span
+                      key={r.id}
+                      className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-0.5 text-sm"
+                    >
+                      {r.name}
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          if (!confirm(`Delete region "${r.name}"?`)) return;
+                          startTransition(async () => {
+                            const res = await deleteRegion(r.id);
+                            if (!res.ok) alert(res.error);
+                            else router.refresh();
+                          });
+                        }}
+                      >
+                        <TrashIcon className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

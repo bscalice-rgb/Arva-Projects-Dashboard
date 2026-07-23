@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
-import { COUNTRY_LABELS } from "@/lib/enums";
+import { COUNTRY_LABELS, CROP_LABELS } from "@/lib/enums";
 import { clientSeasonInclude, toClientSeasonRow } from "../types";
 import { ClientDetail } from "./client-detail";
 
@@ -24,6 +24,7 @@ export default async function ClientDetailPage({
     include: {
       orgNode: { include: { channelPartner: true } },
       mill: true,
+      regions: true,
       seasons: {
         include: {
           ...clientSeasonInclude,
@@ -36,7 +37,7 @@ export default async function ClientDetailPage({
   });
   if (!client) notFound();
 
-  const [channelPartners, mills, selectedSeason] = await Promise.all([
+  const [channelPartners, mills, regions, selectedSeason] = await Promise.all([
     prisma.channelPartner.findMany({
       where: { userId },
       orderBy: { entityName: "asc" },
@@ -46,6 +47,11 @@ export default async function ClientDetailPage({
       where: { userId },
       orderBy: { name: "asc" },
       select: { id: true, name: true, crop: true },
+    }),
+    prisma.region.findMany({
+      where: { userId },
+      orderBy: [{ country: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, country: true },
     }),
     getSelectedSeason(),
   ]);
@@ -86,17 +92,20 @@ export default async function ClientDetailPage({
         name: client.name,
         legalEntity: client.legalEntity,
         country: client.country,
-        defaultCrop: client.defaultCrop,
+        defaultCrops: client.defaultCrops,
         millId: client.millId,
-        region: client.region,
+        regionIds: client.regions.map((r) => r.id),
       }}
       displayCountry={COUNTRY_LABELS[client.country]}
       orgNodeName={client.orgNode.name}
       orgNodeKind={client.orgNode.kind}
       channelPartnerName={client.orgNode.channelPartner?.entityName ?? null}
       millName={client.mill?.name ?? null}
+      cropsDisplay={client.defaultCrops.map((c) => CROP_LABELS[c]).join(", ")}
+      regionsDisplay={client.regions.map((r) => r.name).join(", ")}
       channelPartners={channelPartners}
       mills={mills}
+      regions={regions}
       seasonLinks={seasonLinks}
       activeSeasonId={targetSeasonId}
       activeSeasonLabel={activeSeasonLabel}

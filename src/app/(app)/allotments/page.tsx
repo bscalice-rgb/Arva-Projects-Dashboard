@@ -4,39 +4,42 @@ import { getSelectedSeason } from "@/lib/season";
 import { computeShedLoaded } from "@/lib/supply-shed";
 import { PageHeader } from "@/components/page-header";
 import { NoSeason } from "@/components/no-season";
-import { SupplyShedsClient, type ShedRow } from "./supply-sheds-client";
+import { AllotmentsClient, type ShedRow } from "./allotments-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function SupplyShedsPage() {
+export default async function AllotmentsPage() {
   const userId = getCurrentUserId();
   const season = await getSelectedSeason();
 
   if (!season) {
     return (
       <div>
-        <PageHeader title="Supply Sheds" />
+        <PageHeader title="Allotments" />
         <NoSeason />
       </div>
     );
   }
 
-  const [sheds, clientSeasons, cps] = await Promise.all([
+  const [sheds, clientSeasons, cps, regions] = await Promise.all([
     prisma.supplyShed.findMany({
       where: { seasonId: season.id, userId },
-      include: { channelPartner: { select: { entityName: true } } },
+      include: {
+        channelPartner: { select: { entityName: true } },
+        region: { select: { name: true } },
+      },
       orderBy: [{ country: "asc" }, { crop: "asc" }],
     }),
     prisma.clientSeason.findMany({
       where: { seasonId: season.id, client: { userId } },
       select: {
-        crop: true,
+        crops: true,
         deliveredAcres: true,
         deliveredHectares: true,
         client: {
           select: {
             country: true,
-            region: true,
+            regions: { select: { id: true } },
             orgNode: { select: { channelPartnerId: true } },
           },
         },
@@ -47,9 +50,26 @@ export default async function SupplyShedsPage() {
       orderBy: { entityName: "asc" },
       select: { id: true, entityName: true },
     }),
+    prisma.region.findMany({
+      where: { userId },
+      orderBy: [{ country: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, country: true },
+    }),
   ]);
 
-  const loaded = computeShedLoaded(sheds, clientSeasons);
+  // Reshape client-seasons for the matcher (regions -> regionIds).
+  const csForMatch = clientSeasons.map((cs) => ({
+    crops: cs.crops,
+    deliveredAcres: cs.deliveredAcres,
+    deliveredHectares: cs.deliveredHectares,
+    client: {
+      country: cs.client.country,
+      regionIds: cs.client.regions.map((r) => r.id),
+      orgNode: { channelPartnerId: cs.client.orgNode.channelPartnerId },
+    },
+  }));
+
+  const loaded = computeShedLoaded(sheds, csForMatch);
 
   const rows: ShedRow[] = sheds.map((s) => {
     const l = loaded.get(s.id) ?? { loadedAcres: 0, loadedHectares: 0 };
@@ -59,7 +79,8 @@ export default async function SupplyShedsPage() {
       channelPartnerId: s.channelPartnerId,
       channelPartnerName: s.channelPartner?.entityName ?? null,
       crop: s.crop,
-      region: s.region,
+      regionId: s.regionId,
+      regionName: s.region?.name ?? null,
       acresNeeded: s.acresNeeded,
       hectaresNeeded: s.hectaresNeeded,
       acresLoaded: l.loadedAcres,
@@ -71,12 +92,13 @@ export default async function SupplyShedsPage() {
   return (
     <div>
       <PageHeader
-        title="Supply Sheds"
-        description="Per-season area targets by CP × crop × country × region. Loaded rolls up from delivered client area; balance can go negative (over-delivery)."
+        title="Allotments"
+        description="Per-season area targets by CP × crop × country × region. Loaded rolls up from delivered grower area; balance can go negative (over-delivery)."
       />
-      <SupplyShedsClient
+      <AllotmentsClient
         rows={rows}
         channelPartners={cps}
+        regions={regions}
         seasonId={season.id}
         seasonLabel={season.label}
       />

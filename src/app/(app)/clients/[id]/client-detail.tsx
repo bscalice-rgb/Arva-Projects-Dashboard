@@ -26,11 +26,13 @@ import {
   TextField,
   TextAreaField,
   LinkedAreaFields,
+  MultiSelectField,
 } from "@/components/form-fields";
 import {
   ClientFormDialog,
   type CpOption,
   type MillOption,
+  type RegionOption,
   type ClientIdentity,
 } from "../client-form-dialog";
 import {
@@ -56,7 +58,7 @@ type SeasonLink = { seasonId: string; label: string; clientSeasonId: string };
 function toForm(r: ClientSeasonRow) {
   const n = (v: number | null) => (v == null ? "" : String(v));
   return {
-    crop: r.crop,
+    crops: r.crops as string[],
     enrolledHectares: n(r.enrolledHectares),
     enrolledAcres: n(r.enrolledAcres),
     legalEntitySetup: r.legalEntitySetup,
@@ -92,8 +94,11 @@ export function ClientDetail({
   orgNodeKind,
   channelPartnerName,
   millName,
+  cropsDisplay,
+  regionsDisplay,
   channelPartners,
   mills,
+  regions,
   seasonLinks,
   activeSeasonId,
   activeSeasonLabel,
@@ -106,8 +111,11 @@ export function ClientDetail({
   orgNodeKind: keyof typeof ORG_NODE_KIND_LABELS;
   channelPartnerName: string | null;
   millName: string | null;
+  cropsDisplay: string;
+  regionsDisplay: string;
   channelPartners: CpOption[];
   mills: MillOption[];
+  regions: RegionOption[];
   seasonLinks: SeasonLink[];
   activeSeasonId: string | null;
   activeSeasonLabel: string | null;
@@ -145,7 +153,7 @@ export function ClientDetail({
     setError(null);
     startTransition(async () => {
       const res = await saveClientSeason(record.id, {
-        crop: form.crop,
+        crops: form.crops,
         enrolledHectares: form.enrolledHectares,
         enrolledAcres: form.enrolledAcres,
         legalEntitySetup: form.legalEntitySetup,
@@ -257,8 +265,8 @@ export function ClientDetail({
           <Info label="Kind" value={ORG_NODE_KIND_LABELS[orgNodeKind]} />
           <Info label="Channel Partner" value={channelPartnerName ?? "—"} />
           <Info label="Country" value={displayCountry} />
-          <Info label="Region" value={identity.region ?? "—"} />
-          <Info label="Default crop" value={CROP_LABELS[identity.defaultCrop]} />
+          <Info label="Regions" value={regionsDisplay || "—"} />
+          <Info label="Crops" value={cropsDisplay || "—"} />
           <Info label="Mill / Refinery" value={millName ?? "—"} />
         </CardContent>
       </Card>
@@ -327,10 +335,10 @@ export function ClientDetail({
           {/* Editable sections */}
           <div className="grid gap-6 lg:grid-cols-2">
             <Section title="Enrollment">
-              <SelectField
-                label="Crop (this season)"
-                value={form.crop}
-                onChange={(v) => set("crop", v as never)}
+              <MultiSelectField
+                label="Crops (this season)"
+                selected={form.crops}
+                onChange={(v) => set("crops", v)}
                 options={CROP_OPTIONS}
               />
               <LinkedAreaFields
@@ -501,6 +509,7 @@ export function ClientDetail({
         onOpenChange={setEditOpen}
         channelPartners={channelPartners}
         mills={mills}
+        regions={regions}
         seasonId={activeSeasonId}
         editing={identity}
       />

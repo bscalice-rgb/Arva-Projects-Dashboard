@@ -25,8 +25,11 @@ per-**season** data so you can carry a grower or CP forward from one year to the
   filters, **inline pipeline editing**, sortable columns and CSV export; a per-grower detail
   view with the ordered pipeline stepper (current stage highlighted), linked acres⇄hectares
   inputs, and grouped editors for pipeline + outcomes.
-- **Supply Sheds** — per-season targets by CP × crop × country × region; **loaded volume
-  auto-rolls up** from delivered client area, balance can go negative (over-delivery).
+- **Allotments** — per-season targets by CP × crop × country × region; **loaded volume
+  auto-rolls up** from delivered grower area, balance can go negative (over-delivery).
+- **Countries & Regions** (under Seasons) — a managed list of states/regions per country;
+  grower and allotment region pickers adapt to the selected country. Growers can span
+  multiple regions and grow multiple crops.
 - **Seasons & carry-forward** — create program years and carry selected growers/CPs into a
   new season (stable identity pre-filled, **only the W-8 carries over**, everything else
   resets; a reference to last year's record is retained).
@@ -158,7 +161,7 @@ src/
     login/               # sign-in
     (app)/               # authenticated shell + all modules
       page.tsx           # dashboard
-      clients/ channel-partners/ mills/ supply-sheds/ seasons/
+      clients/ channel-partners/ mills/ allotments/ seasons/
   lib/org-node.ts          # automatic Org Node management (CP = node; direct = own node)
 ```
 

@@ -112,7 +112,6 @@ async function main() {
     mill = await prisma.mill.create({
       data: {
         name: "Sample Palm Refinery",
-        type: "REFINERY",
         crop: "AFRICAN_OIL_PALM",
         country: "IDN",
         region: "Riau",
@@ -120,6 +119,26 @@ async function main() {
       },
     });
   }
+
+  // Sample regions (managed list; dropdowns adapt by country).
+  const riau = await prisma.region.upsert({
+    where: {
+      userId_country_name: { userId: user.id, country: "IDN", name: "Riau" },
+    },
+    update: {},
+    create: { userId: user.id, country: "IDN", name: "Riau" },
+  });
+  const buenosAires = await prisma.region.upsert({
+    where: {
+      userId_country_name: {
+        userId: user.id,
+        country: "ARG",
+        name: "Buenos Aires",
+      },
+    },
+    update: {},
+    create: { userId: user.id, country: "ARG", name: "Buenos Aires" },
+  });
 
   // A couple of clients under the CP org node.
   const clientData = [
@@ -137,9 +156,9 @@ async function main() {
           name: c.name,
           legalEntity: c.legalEntity,
           country: "IDN",
-          defaultCrop: "AFRICAN_OIL_PALM",
+          defaultCrops: ["AFRICAN_OIL_PALM"],
           millId: mill.id,
-          region: "Riau",
+          regions: { connect: { id: riau.id } },
           userId: user.id,
         },
       });
@@ -150,7 +169,7 @@ async function main() {
       create: {
         clientId: client.id,
         seasonId: season.id,
-        crop: "AFRICAN_OIL_PALM",
+        crops: ["AFRICAN_OIL_PALM"],
         enrolledHectares: 1200,
         enrolledAcres: 2965,
         legalEntitySetup: true,
@@ -184,8 +203,8 @@ async function main() {
         name: "Estancia Verde",
         legalEntity: "Estancia Verde S.A.",
         country: "ARG",
-        defaultCrop: "SOYBEANS",
-        region: "Buenos Aires",
+        defaultCrops: ["SOYBEANS", "CORN"],
+        regions: { connect: { id: buenosAires.id } },
         userId: user.id,
       },
     });
@@ -198,7 +217,7 @@ async function main() {
     create: {
       clientId: directClient.id,
       seasonId: season.id,
-      crop: "SOYBEANS",
+      crops: ["SOYBEANS", "CORN"],
       enrolledHectares: 800,
       enrolledAcres: 1977,
       legalEntitySetup: true,
@@ -219,7 +238,7 @@ async function main() {
       channelPartnerId: ksmj.id,
       crop: "AFRICAN_OIL_PALM",
       country: "IDN",
-      region: "Riau",
+      regionId: riau.id,
     },
   });
   if (!shedExists) {
@@ -229,7 +248,7 @@ async function main() {
         country: "IDN",
         channelPartnerId: ksmj.id,
         crop: "AFRICAN_OIL_PALM",
-        region: "Riau",
+        regionId: riau.id,
         acresNeeded: 10000,
         hectaresNeeded: 4047,
         userId: user.id,

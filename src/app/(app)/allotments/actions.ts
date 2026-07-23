@@ -19,14 +19,14 @@ export async function createSupplyShed(
       country: d.country,
       channelPartnerId: d.channelPartnerId,
       crop: d.crop,
-      region: d.region,
+      regionId: d.regionId,
       acresNeeded: d.acresNeeded,
       hectaresNeeded: d.hectaresNeeded,
       enteredInCropForce: d.enteredInCropForce,
       userId: await ensureAdminUser(),
     },
   });
-  revalidatePath("/supply-sheds");
+  revalidatePath("/allotments");
   revalidatePath("/");
   return { ok: true };
 }
@@ -44,20 +44,20 @@ export async function updateSupplyShed(
       country: d.country,
       channelPartnerId: d.channelPartnerId,
       crop: d.crop,
-      region: d.region,
+      regionId: d.regionId,
       acresNeeded: d.acresNeeded,
       hectaresNeeded: d.hectaresNeeded,
       enteredInCropForce: d.enteredInCropForce,
     },
   });
-  revalidatePath("/supply-sheds");
+  revalidatePath("/allotments");
   revalidatePath("/");
   return { ok: true };
 }
 
 export async function deleteSupplyShed(id: string): Promise<ActionResult> {
   await prisma.supplyShed.delete({ where: { id } });
-  revalidatePath("/supply-sheds");
+  revalidatePath("/allotments");
   revalidatePath("/");
   return { ok: true };
 }

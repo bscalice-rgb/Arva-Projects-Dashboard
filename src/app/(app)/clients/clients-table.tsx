@@ -23,6 +23,7 @@ import {
   ClientFormDialog,
   type CpOption,
   type MillOption,
+  type RegionOption,
 } from "./client-form-dialog";
 import {
   CROP_LABELS,
@@ -49,6 +50,7 @@ export function ClientsTable({
   rows: initialRows,
   channelPartners,
   mills,
+  regions,
   channelPartnerNames,
   seasonId,
   seasonLabel,
@@ -56,6 +58,7 @@ export function ClientsTable({
   rows: ClientSeasonRow[];
   channelPartners: CpOption[];
   mills: MillOption[];
+  regions: RegionOption[];
   channelPartnerNames: string[];
   seasonId: string | null;
   seasonLabel: string;
@@ -98,7 +101,7 @@ export function ClientsTable({
       )
         return false;
       if (country && r.country !== country) return false;
-      if (crop && r.crop !== crop) return false;
+      if (crop && !r.crops.includes(crop as never)) return false;
       if (cp === "__direct__" && r.orgNodeKind !== "DIRECT_GROWER") return false;
       if (cp && cp !== "__direct__" && r.channelPartnerName !== cp) return false;
       if (stage) {
@@ -161,8 +164,11 @@ export function ClientsTable({
             : r.channelPartnerName ?? "",
       },
       { header: "Country", value: (r) => COUNTRY_LABELS[r.country] },
-      { header: "Region", value: (r) => r.region },
-      { header: "Crop", value: (r) => CROP_LABELS[r.crop] },
+      { header: "Regions", value: (r) => r.regionNames.join("; ") },
+      {
+        header: "Crops",
+        value: (r) => r.crops.map((c) => CROP_LABELS[c]).join("; "),
+      },
       { header: "Mill", value: (r) => r.millName },
       { header: "Enrolled ha", value: (r) => r.enrolledHectares },
       { header: "Enrolled ac", value: (r) => r.enrolledAcres },
@@ -388,11 +394,17 @@ export function ClientsTable({
                     {COUNTRY_LABELS[r.country]}
                   </TableCell>
                   <TableCell>
-                    <InlineEnum
-                      value={r.crop}
-                      onChange={(v) => patch(r.id, { crop: v as never })}
-                      options={CROP_OPTIONS}
-                    />
+                    <div className="flex flex-wrap gap-1">
+                      {r.crops.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        r.crops.map((c) => (
+                          <Badge key={c} variant="muted" className="text-xs">
+                            {CROP_LABELS[c]}
+                          </Badge>
+                        ))
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <PipelineProgress cs={r} />
@@ -527,6 +539,7 @@ export function ClientsTable({
         onOpenChange={setDialogOpen}
         channelPartners={channelPartners}
         mills={mills}
+        regions={regions}
         seasonId={seasonId}
       />
     </div>

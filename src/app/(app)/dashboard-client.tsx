@@ -76,7 +76,7 @@ export function DashboardClient({
     () =>
       clients.filter((c) => {
         if (country && c.country !== country) return false;
-        if (crop && c.crop !== crop) return false;
+        if (crop && !c.crops.includes(crop as never)) return false;
         if (cp && c.cpKey !== cp) return false;
         return true;
       }),
@@ -128,14 +128,24 @@ export function DashboardClient({
       { name: string; enrolled: number; delivered: number; tCO2e: number }
     >();
     for (const c of filtered) {
-      const key =
-        dim === "cp" ? c.cpName : dim === "country" ? COUNTRY_LABELS[c.country] : CROP_LABELS[c.crop];
-      if (!map.has(key))
-        map.set(key, { name: key, enrolled: 0, delivered: 0, tCO2e: 0 });
-      const e = map.get(key)!;
-      e.enrolled += unit === "ac" ? c.enrolledAcres : c.enrolledHectares;
-      e.delivered += unit === "ac" ? c.deliveredAcres : c.deliveredHectares;
-      e.tCO2e += c.tCO2e;
+      // For the crop dimension a multi-crop grower is counted under each of its
+      // crops (its area is not split per crop).
+      const keys =
+        dim === "cp"
+          ? [c.cpName]
+          : dim === "country"
+            ? [COUNTRY_LABELS[c.country]]
+            : c.crops.length
+              ? c.crops.map((cr) => CROP_LABELS[cr])
+              : ["—"];
+      for (const key of keys) {
+        if (!map.has(key))
+          map.set(key, { name: key, enrolled: 0, delivered: 0, tCO2e: 0 });
+        const e = map.get(key)!;
+        e.enrolled += unit === "ac" ? c.enrolledAcres : c.enrolledHectares;
+        e.delivered += unit === "ac" ? c.deliveredAcres : c.deliveredHectares;
+        e.tCO2e += c.tCO2e;
+      }
     }
     return [...map.values()].sort((a, b) => b.delivered - a.delivered);
   }, [filtered, dim, unit]);

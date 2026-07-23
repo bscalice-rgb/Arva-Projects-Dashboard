@@ -11,13 +11,18 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { TextField, SelectField } from "@/components/form-fields";
+import {
+  TextField,
+  SelectField,
+  MultiSelectField,
+} from "@/components/form-fields";
 import { CROP_OPTIONS, COUNTRY_OPTIONS, MILL_CROPS } from "@/lib/enums";
 import type { Country, Crop } from "@prisma/client";
 import { createClient, updateClient } from "./actions";
 
 export type CpOption = { id: string; entityName: string };
 export type MillOption = { id: string; name: string; crop: Crop };
+export type RegionOption = { id: string; name: string; country: Country };
 
 export type ClientIdentity = {
   id: string;
@@ -26,23 +31,22 @@ export type ClientIdentity = {
   name: string;
   legalEntity: string | null;
   country: Country;
-  defaultCrop: Crop;
+  defaultCrops: Crop[];
   millId: string | null;
-  region: string | null;
+  regionIds: string[];
 };
 
 const DIRECT = "__direct__";
 
 function initialForm(editing?: ClientIdentity | null, lockedCp?: string | null) {
   return {
-    // channel holds a CP id or DIRECT
     channel: lockedCp ?? editing?.channelPartnerId ?? DIRECT,
     name: editing?.name ?? "",
     legalEntity: editing?.legalEntity ?? "",
     country: (editing?.country ?? "") as Country | "",
-    defaultCrop: (editing?.defaultCrop ?? "CORN") as Crop,
+    defaultCrops: (editing?.defaultCrops ?? []) as string[],
     millId: editing?.millId ?? "",
-    region: editing?.region ?? "",
+    regionIds: (editing?.regionIds ?? []) as string[],
   };
 }
 
@@ -51,6 +55,7 @@ export function ClientFormDialog({
   onOpenChange,
   channelPartners,
   mills,
+  regions,
   seasonId,
   editing,
   lockedChannelPartnerId,
@@ -59,9 +64,9 @@ export function ClientFormDialog({
   onOpenChange: (v: boolean) => void;
   channelPartners: CpOption[];
   mills: MillOption[];
+  regions: RegionOption[];
   seasonId: string | null;
   editing?: ClientIdentity | null;
-  /** When set, the grower is fixed to this CP and the selector is hidden. */
   lockedChannelPartnerId?: string | null;
 }) {
   const router = useRouter();
@@ -71,7 +76,6 @@ export function ClientFormDialog({
     initialForm(editing, lockedChannelPartnerId),
   );
 
-  // Reset form whenever the dialog opens with a (possibly different) target.
   const [lastKey, setLastKey] = useState<string>("");
   const key = `${open}:${editing?.id ?? "new"}:${lockedChannelPartnerId ?? ""}`;
   if (key !== lastKey) {
@@ -80,7 +84,12 @@ export function ClientFormDialog({
     setForm(initialForm(editing, lockedChannelPartnerId));
   }
 
-  const showMill = MILL_CROPS.includes(form.defaultCrop);
+  const showMill = form.defaultCrops.some((c) =>
+    MILL_CROPS.includes(c as Crop),
+  );
+  const regionOptions = regions
+    .filter((r) => r.country === form.country)
+    .map((r) => ({ value: r.id, label: r.name }));
 
   function submit() {
     setError(null);
@@ -90,9 +99,9 @@ export function ClientFormDialog({
         name: form.name,
         legalEntity: form.legalEntity || null,
         country: form.country || undefined,
-        defaultCrop: form.defaultCrop,
+        defaultCrops: form.defaultCrops,
         millId: showMill ? form.millId || null : null,
-        region: form.region || null,
+        regionIds: form.regionIds,
       };
       const res = editing
         ? await updateClient(editing.id, payload)
@@ -141,42 +150,48 @@ export function ClientFormDialog({
             onChange={(v) => setForm((f) => ({ ...f, legalEntity: v }))}
             placeholder="Formal legal name"
           />
-          <div className="grid grid-cols-2 gap-4">
+          <SelectField
+            label="Country"
+            required
+            value={form.country || undefined}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                country: v as Country,
+                regionIds: [], // regions depend on country
+              }))
+            }
+            options={COUNTRY_OPTIONS}
+          />
+          <MultiSelectField
+            label="Crops"
+            options={CROP_OPTIONS}
+            selected={form.defaultCrops}
+            onChange={(v) => setForm((f) => ({ ...f, defaultCrops: v }))}
+          />
+          <MultiSelectField
+            label="Regions / states"
+            options={regionOptions}
+            selected={form.regionIds}
+            onChange={(v) => setForm((f) => ({ ...f, regionIds: v }))}
+            emptyHint={
+              form.country
+                ? "No regions set up for this country yet — add them under Seasons → Countries & Regions."
+                : "Pick a country first."
+            }
+          />
+          {showMill && (
             <SelectField
-              label="Country"
-              required
-              value={form.country || undefined}
-              onChange={(v) => setForm((f) => ({ ...f, country: v as Country }))}
-              options={COUNTRY_OPTIONS}
+              label="Mill / Refinery"
+              value={form.millId || undefined}
+              onChange={(v) => setForm((f) => ({ ...f, millId: v }))}
+              includeEmpty
+              emptyLabel="None"
+              options={mills
+                .filter((m) => form.defaultCrops.includes(m.crop))
+                .map((m) => ({ value: m.id, label: m.name }))}
             />
-            <SelectField
-              label="Default crop"
-              value={form.defaultCrop}
-              onChange={(v) =>
-                setForm((f) => ({ ...f, defaultCrop: v as Crop }))
-              }
-              options={CROP_OPTIONS}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <TextField
-              label="Region / Province"
-              value={form.region}
-              onChange={(v) => setForm((f) => ({ ...f, region: v }))}
-            />
-            {showMill && (
-              <SelectField
-                label="Mill / Refinery"
-                value={form.millId || undefined}
-                onChange={(v) => setForm((f) => ({ ...f, millId: v }))}
-                includeEmpty
-                emptyLabel="None"
-                options={mills
-                  .filter((m) => m.crop === form.defaultCrop)
-                  .map((m) => ({ value: m.id, label: m.name }))}
-              />
-            )}
-          </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>

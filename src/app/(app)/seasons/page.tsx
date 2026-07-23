@@ -33,6 +33,12 @@ export default async function SeasonsPage() {
     },
   });
 
+  const regions = await prisma.region.findMany({
+    where: { userId },
+    orderBy: [{ country: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, country: true },
+  });
+
   const clientsBySeason: Record<string, { id: string; name: string }[]> = {};
   const cpsBySeason: Record<string, { id: string; name: string }[]> = {};
   for (const s of seasons) {
@@ -64,6 +70,7 @@ export default async function SeasonsPage() {
         }))}
         clientsBySeason={clientsBySeason}
         cpsBySeason={cpsBySeason}
+        regions={regions}
       />
     </div>
   );

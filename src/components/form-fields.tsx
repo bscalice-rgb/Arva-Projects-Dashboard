@@ -204,6 +204,64 @@ export function LinkedAreaFields({
   );
 }
 
+/** Multi-select rendered as toggleable chips (good for small option sets). */
+export function MultiSelectField<T extends string>({
+  label,
+  options,
+  selected,
+  onChange,
+  required,
+  emptyHint,
+}: {
+  label: string;
+  options: EnumOption<T>[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+  required?: boolean;
+  emptyHint?: string;
+}) {
+  function toggle(value: string) {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value],
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      <Label>
+        {label}
+        {required && <span className="text-destructive"> *</span>}
+      </Label>
+      {options.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {emptyHint ?? "No options available."}
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {options.map((o) => {
+            const active = selected.includes(o.value);
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => toggle(o.value)}
+                className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-input bg-background hover:bg-accent"
+                }`}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CheckboxField({
   label,
   checked,
