@@ -332,7 +332,7 @@ export function ClientsTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card">
+                <TableHead className="sticky left-0 z-10 min-w-[220px] bg-card">
                   <SortHead
                     label="Client"
                     active={sortKey === "client"}
@@ -390,15 +390,19 @@ export function ClientsTable({
             <TableBody>
               {sorted.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="sticky left-0 z-10 bg-card font-medium">
+                  <TableCell className="sticky left-0 z-10 min-w-[220px] max-w-[320px] bg-card font-medium">
                     <Link
                       href={`/clients/${r.clientId}`}
-                      className="hover:underline"
+                      className="block truncate hover:underline"
+                      title={r.clientName}
                     >
                       {r.clientName}
                     </Link>
                     {r.legalEntity && (
-                      <div className="text-xs text-muted-foreground">
+                      <div
+                        className="truncate text-xs text-muted-foreground"
+                        title={r.legalEntity}
+                      >
                         {r.legalEntity}
                       </div>
                     )}
