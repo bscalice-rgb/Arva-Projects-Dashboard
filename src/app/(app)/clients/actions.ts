@@ -101,9 +101,19 @@ export async function updateClient(
   return { ok: true };
 }
 
+/** Permanently delete a grower and all of its per-season records. */
 export async function deleteClient(id: string): Promise<ActionResult> {
+  const client = await prisma.client.findUnique({
+    where: { id },
+    select: { orgNodeId: true },
+  });
+  if (!client) return { ok: false, error: "Grower not found." };
   await prisma.client.delete({ where: { id } });
+  // If this was a direct grower with a dedicated node, remove the empty node.
+  await cleanupOrphanDirectOrgNode(client.orgNodeId);
   revalidatePath("/clients");
+  revalidatePath("/channel-partners");
+  revalidatePath("/");
   return { ok: true };
 }
 

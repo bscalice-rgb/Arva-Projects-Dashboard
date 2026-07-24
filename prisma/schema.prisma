@@ -64,15 +64,10 @@ enum DataStatus {
   DONE
 }
 
-enum QaqcNpks {
-  NOT_DONE
+enum QaqcStatus {
+  NOT_STARTED
+  IN_PROGRESS
   DONE
-}
-
-enum QaqcFlags {
-  OPEN
-  RESOLVED
-  NONE
 }
 
 enum Evidencing {
@@ -121,6 +116,7 @@ model User {
   channelPartners ChannelPartner[]
   clients         Client[]
   mills           Mill[]
+  millGroups      MillGroup[]
   supplySheds     SupplyShed[]
   regions         Region[]
 }
@@ -233,8 +229,24 @@ model Client {
 }
 
 // ---------------------------------------------------------------------------
-// Identity: Mill / Refinery (sugarcane & palm processing)
+// Identity: Mill Group (a company that owns multiple mills / refineries)
+// and Mill / Refinery (sugarcane & palm processing). Group > Mill/Refinery.
 // ---------------------------------------------------------------------------
+
+model MillGroup {
+  id        String   @id @default(cuid())
+  name      String
+  country   Country?
+  notes     String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User?  @relation(fields: [userId], references: [id])
+  mills Mill[]
+
+  @@index([userId])
+}
 
 model Mill {
   id        String   @id @default(cuid())
@@ -243,13 +255,16 @@ model Mill {
   country   Country
   region    String?
   notes     String?
+  groupId   String?
   userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User?    @relation(fields: [userId], references: [id])
+  group   MillGroup? @relation(fields: [groupId], references: [id])
+  user    User?      @relation(fields: [userId], references: [id])
   clients Client[]
 
+  @@index([groupId])
   @@index([userId])
 }
 
@@ -312,11 +327,11 @@ model ClientSeason {
   enrolledAcres    Float?
 
   // ---- Execution pipeline flags (order lives in src/lib/pipeline.ts) ----
-  legalEntitySetup            Boolean        @default(false)
+  boundariesStatus            DataStatus     @default(NOT_STARTED)
   dataStatus                  DataStatus     @default(NOT_STARTED)
+  legalEntitySetup            Boolean        @default(false)
   fieldRequested              Boolean        @default(false)
-  qaqcNpks                    QaqcNpks       @default(NOT_DONE)
-  qaqcFlags                   QaqcFlags      @default(OPEN)
+  qaqc                        QaqcStatus     @default(NOT_STARTED)
   fieldConfirmed              Boolean        @default(false)
   evidencing                  Evidencing     @default(NOT_ATTACHED)
   ecc                         EccStatus      @default(NOT_STARTED)

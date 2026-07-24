@@ -8,6 +8,10 @@ import { clientSeasonInclude, toClientSeasonRow } from "./types";
 
 export const dynamic = "force-dynamic";
 
+const millLabel = (m: { name: string; group: { name: string } | null }) =>
+  m.group ? `${m.group.name} — ${m.name}` : m.name;
+
+
 export default async function ClientsPage() {
   const userId = getCurrentUserId();
   const season = await getSelectedSeason();
@@ -29,8 +33,13 @@ export default async function ClientsPage() {
     }),
     prisma.mill.findMany({
       where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, crop: true },
+      orderBy: [{ group: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        crop: true,
+        group: { select: { name: true } },
+      },
     }),
     prisma.channelPartner.findMany({
       where: { userId },
@@ -55,7 +64,7 @@ export default async function ClientsPage() {
       <ClientsTable
         rows={rows}
         channelPartners={cps}
-        mills={mills}
+        mills={mills.map((m) => ({ id: m.id, name: millLabel(m), crop: m.crop }))}
         regions={regions}
         channelPartnerNames={cps.map((c) => c.entityName)}
         seasonId={season.id}

@@ -8,6 +8,10 @@ import { ClientDetail } from "./client-detail";
 
 export const dynamic = "force-dynamic";
 
+const millLabel = (m: { name: string; group: { name: string } | null }) =>
+  m.group ? `${m.group.name} — ${m.name}` : m.name;
+
+
 export default async function ClientDetailPage({
   params,
   searchParams,
@@ -23,7 +27,7 @@ export default async function ClientDetailPage({
     where: { id, userId },
     include: {
       orgNode: { include: { channelPartner: true } },
-      mill: true,
+      mill: { include: { group: true } },
       regions: true,
       seasons: {
         include: {
@@ -45,8 +49,13 @@ export default async function ClientDetailPage({
     }),
     prisma.mill.findMany({
       where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, crop: true },
+      orderBy: [{ group: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        crop: true,
+        group: { select: { name: true } },
+      },
     }),
     prisma.region.findMany({
       where: { userId },
@@ -100,11 +109,11 @@ export default async function ClientDetailPage({
       orgNodeName={client.orgNode.name}
       orgNodeKind={client.orgNode.kind}
       channelPartnerName={client.orgNode.channelPartner?.entityName ?? null}
-      millName={client.mill?.name ?? null}
+      millName={client.mill ? millLabel(client.mill) : null}
       cropsDisplay={client.defaultCrops.map((c) => CROP_LABELS[c]).join(", ")}
       regionsDisplay={client.regions.map((r) => r.name).join(", ")}
       channelPartners={channelPartners}
-      mills={mills}
+      mills={mills.map((m) => ({ id: m.id, name: millLabel(m), crop: m.crop }))}
       regions={regions}
       seasonLinks={seasonLinks}
       activeSeasonId={targetSeasonId}

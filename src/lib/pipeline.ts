@@ -1,35 +1,33 @@
-// The grower execution pipeline (Section 6 of the spec).
+// The grower execution pipeline.
 // The ORDER is defined here in one place so it is easy to edit. Each stage has
 // a predicate over the per-season record. "Current stage" = first incomplete step.
 // This powers progress %, the dashboard funnel/bottleneck view, and (in V2) the
 // deadline "required minimum stage" hook via `stageIndex`.
+//
+// Full order (per feedback): Boundaries upload > Data upload > Legal Entity
+// Setup > Requested > QA/QC > Evidencing > ECC > Confirmed > W-8 >
+// Contract & Bank Details. Outcomes (fields, tCO₂e, delivered area, amount)
+// are contract results, not pipeline steps.
 
 import type { ClientSeason } from "@prisma/client";
 
 /** Fields of a ClientSeason the pipeline predicates read. */
 export type PipelineInput = Pick<
   ClientSeason,
-  | "legalEntitySetup"
+  | "boundariesStatus"
   | "dataStatus"
+  | "legalEntitySetup"
   | "fieldRequested"
-  | "qaqcNpks"
-  | "qaqcFlags"
-  | "fieldConfirmed"
+  | "qaqc"
   | "evidencing"
   | "ecc"
-  | "eccLink"
+  | "fieldConfirmed"
   | "w8Type"
   | "w8InCropForce"
   | "w8MatchesLegalEntity"
   | "contractStatus"
   | "contractApprovedInCropForce"
   | "bankDetails"
-  | "fields"
-  | "tCO2e"
-  | "deliveredAcres"
-  | "deliveredHectares"
-  | "amount"
-  | "paymentDone"
 >;
 
 export type PipelineStage = {
@@ -42,82 +40,68 @@ export type PipelineStage = {
 
 export const PIPELINE_STAGES: PipelineStage[] = [
   {
+    key: "boundaries",
+    label: "Boundaries upload",
+    shortLabel: "Boundaries",
+    isComplete: (cs) => cs.boundariesStatus === "DONE",
+  },
+  {
+    key: "dataUpload",
+    label: "Data upload",
+    shortLabel: "Data",
+    isComplete: (cs) => cs.dataStatus === "DONE",
+  },
+  {
     key: "legalEntitySetup",
     label: "Legal entity setup",
     shortLabel: "Legal entity",
     isComplete: (cs) => cs.legalEntitySetup,
   },
   {
-    key: "dataUploaded",
-    label: "Data uploaded",
-    shortLabel: "Data",
-    isComplete: (cs) => cs.dataStatus === "DONE",
-  },
-  {
-    key: "fieldRequested",
-    label: "Field requested",
-    shortLabel: "Field req.",
+    key: "requested",
+    label: "Requested",
+    shortLabel: "Requested",
     isComplete: (cs) => cs.fieldRequested,
   },
   {
     key: "qaqc",
-    label: "QA/QC (NPKS fix + flags resolved)",
+    label: "QA/QC",
     shortLabel: "QA/QC",
-    isComplete: (cs) =>
-      cs.qaqcNpks === "DONE" &&
-      (cs.qaqcFlags === "RESOLVED" || cs.qaqcFlags === "NONE"),
+    isComplete: (cs) => cs.qaqc === "DONE",
   },
   {
-    key: "fieldConfirmed",
-    label: "Field confirmed",
-    shortLabel: "Field conf.",
+    key: "evidencing",
+    label: "Evidencing",
+    shortLabel: "Evidencing",
+    isComplete: (cs) => cs.evidencing === "ATTACHED",
+  },
+  {
+    key: "ecc",
+    label: "ECC",
+    shortLabel: "ECC",
+    isComplete: (cs) => cs.ecc === "CONFIRMED",
+  },
+  {
+    key: "confirmed",
+    label: "Confirmed",
+    shortLabel: "Confirmed",
     isComplete: (cs) => cs.fieldConfirmed,
   },
   {
-    key: "evidence",
-    label: "Evidence attached (ECC + ECC link)",
-    shortLabel: "Evidence",
-    isComplete: (cs) =>
-      cs.evidencing === "ATTACHED" &&
-      cs.ecc === "CONFIRMED" &&
-      !!cs.eccLink &&
-      cs.eccLink.trim().length > 0,
-  },
-  {
     key: "w8",
-    label: "W-8 complete (type + in CropForce + matches legal entity)",
+    label: "W-8 (type + in CropForce + matches legal entity)",
     shortLabel: "W-8",
     isComplete: (cs) =>
       cs.w8Type != null && cs.w8InCropForce && cs.w8MatchesLegalEntity,
   },
   {
-    key: "contract",
-    label: "Contract complete (signed + approved in CropForce)",
-    shortLabel: "Contract",
+    key: "contractBank",
+    label: "Contract & bank details (signed + approved + bank on file)",
+    shortLabel: "Contract & bank",
     isComplete: (cs) =>
-      cs.contractStatus === "SIGNED" && cs.contractApprovedInCropForce,
-  },
-  {
-    key: "bankDetails",
-    label: "Bank details on file",
-    shortLabel: "Bank",
-    isComplete: (cs) => cs.bankDetails,
-  },
-  {
-    key: "resultsLoaded",
-    label: "Results loaded (fields, tCO₂e, delivered area, amount)",
-    shortLabel: "Results",
-    isComplete: (cs) =>
-      cs.fields != null &&
-      cs.tCO2e != null &&
-      (cs.deliveredAcres != null || cs.deliveredHectares != null) &&
-      cs.amount != null,
-  },
-  {
-    key: "payment",
-    label: "Payment done",
-    shortLabel: "Payment",
-    isComplete: (cs) => cs.paymentDone,
+      cs.contractStatus === "SIGNED" &&
+      cs.contractApprovedInCropForce &&
+      cs.bankDetails,
   },
 ];
 

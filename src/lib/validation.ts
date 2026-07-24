@@ -5,8 +5,7 @@ import {
   Country,
   Crop,
   DataStatus,
-  QaqcNpks,
-  QaqcFlags,
+  QaqcStatus,
   Evidencing,
   EccStatus,
   W8Type,
@@ -87,9 +86,20 @@ export const millSchema = z.object({
   crop: z.nativeEnum(Crop),
   country: z.nativeEnum(Country),
   region: optionalString,
+  groupId: optionalString,
   notes: optionalString,
 });
 export type MillInput = z.infer<typeof millSchema>;
+
+export const millGroupSchema = z.object({
+  name: nonEmptyString,
+  country: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.nativeEnum(Country).nullable(),
+  ),
+  notes: optionalString,
+});
+export type MillGroupInput = z.infer<typeof millGroupSchema>;
 
 export const regionSchema = z.object({
   country: z.nativeEnum(Country),
@@ -115,11 +125,11 @@ export const clientSeasonEditableSchema = z.object({
   enrolledHectares: optionalNumber,
   enrolledAcres: optionalNumber,
 
-  legalEntitySetup: z.boolean(),
+  boundariesStatus: z.nativeEnum(DataStatus),
   dataStatus: z.nativeEnum(DataStatus),
+  legalEntitySetup: z.boolean(),
   fieldRequested: z.boolean(),
-  qaqcNpks: z.nativeEnum(QaqcNpks),
-  qaqcFlags: z.nativeEnum(QaqcFlags),
+  qaqc: z.nativeEnum(QaqcStatus),
   fieldConfirmed: z.boolean(),
   evidencing: z.nativeEnum(Evidencing),
   ecc: z.nativeEnum(EccStatus),

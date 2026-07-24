@@ -14,6 +14,10 @@ import { CpDetail } from "./cp-detail";
 
 export const dynamic = "force-dynamic";
 
+const millLabel = (m: { name: string; group: { name: string } | null }) =>
+  m.group ? `${m.group.name} — ${m.name}` : m.name;
+
+
 export default async function CpDetailPage({
   params,
 }: {
@@ -57,8 +61,13 @@ export default async function CpDetailPage({
     }),
     prisma.mill.findMany({
       where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, crop: true },
+      orderBy: [{ group: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        crop: true,
+        group: { select: { name: true } },
+      },
     }),
     prisma.region.findMany({
       where: { userId },
@@ -102,7 +111,7 @@ export default async function CpDetailPage({
       agg={agg}
       payees={cpSeason?.payees ?? []}
       clients={clients}
-      mills={mills}
+      mills={mills.map((m) => ({ id: m.id, name: millLabel(m), crop: m.crop }))}
       regions={regions}
     />
   );

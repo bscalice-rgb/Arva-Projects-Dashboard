@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Download, Sprout, ExternalLink, ChevronsUpDown } from "lucide-react";
+import {
+  Plus,
+  Download,
+  Sprout,
+  ExternalLink,
+  ChevronsUpDown,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +38,7 @@ import {
   COUNTRY_LABELS,
   COUNTRY_OPTIONS,
   DATA_STATUS_OPTIONS,
-  QAQC_NPKS_OPTIONS,
-  QAQC_FLAGS_OPTIONS,
+  QAQC_STATUS_OPTIONS,
   EVIDENCING_OPTIONS,
   ECC_STATUS_OPTIONS,
   W8_TYPE_OPTIONS,
@@ -42,7 +48,7 @@ import { getPipelineStatus, PIPELINE_STAGES } from "@/lib/pipeline";
 import { formatNumber, formatUsd } from "@/lib/utils";
 import { toCsv, downloadCsv, type CsvColumn } from "@/lib/csv";
 import type { ClientSeasonRow } from "./types";
-import { patchClientSeason } from "./actions";
+import { patchClientSeason, deleteClient } from "./actions";
 
 type SortKey = "client" | "progress" | "delivered" | "amount";
 
@@ -88,6 +94,20 @@ export function ClientsTable({
         alert(res.error);
         router.refresh();
       }
+    });
+  }
+
+  function onDeleteGrower(r: ClientSeasonRow) {
+    if (
+      !confirm(
+        `Delete grower "${r.clientName}"? This permanently removes the grower and its records across ALL seasons.`,
+      )
+    )
+      return;
+    startTransition(async () => {
+      const res = await deleteClient(r.clientId);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
     });
   }
 
@@ -180,14 +200,14 @@ export function ClientsTable({
         header: "Progress %",
         value: (r) => Math.round(getPipelineStatus(r).percentComplete * 100),
       },
+      { header: "Boundaries upload", value: (r) => r.boundariesStatus },
+      { header: "Data upload", value: (r) => r.dataStatus },
       { header: "Legal entity setup", value: (r) => (r.legalEntitySetup ? "Y" : "N") },
-      { header: "Data status", value: (r) => r.dataStatus },
-      { header: "Field requested", value: (r) => (r.fieldRequested ? "Y" : "N") },
-      { header: "QAQC NPKS", value: (r) => r.qaqcNpks },
-      { header: "QAQC Flags", value: (r) => r.qaqcFlags },
-      { header: "Field confirmed", value: (r) => (r.fieldConfirmed ? "Y" : "N") },
+      { header: "Requested", value: (r) => (r.fieldRequested ? "Y" : "N") },
+      { header: "QA/QC", value: (r) => r.qaqc },
       { header: "Evidencing", value: (r) => r.evidencing },
       { header: "ECC", value: (r) => r.ecc },
+      { header: "Confirmed", value: (r) => (r.fieldConfirmed ? "Y" : "N") },
       { header: "W8 type", value: (r) => r.w8Type ?? "" },
       { header: "W8 in CropForce", value: (r) => (r.w8InCropForce ? "Y" : "N") },
       { header: "W8 matches LE", value: (r) => (r.w8MatchesLegalEntity ? "Y" : "N") },
@@ -331,14 +351,14 @@ export function ClientsTable({
                     onClick={() => toggleSort("progress")}
                   />
                 </TableHead>
-                <TableHead className={`${th} text-center`}>Legal ent.</TableHead>
+                <TableHead className={th}>Boundaries</TableHead>
                 <TableHead className={th}>Data</TableHead>
-                <TableHead className={`${th} text-center`}>Field req.</TableHead>
-                <TableHead className={th}>NPKS</TableHead>
-                <TableHead className={th}>Flags</TableHead>
-                <TableHead className={`${th} text-center`}>Field conf.</TableHead>
-                <TableHead className={th}>Evidence</TableHead>
+                <TableHead className={`${th} text-center`}>Legal ent.</TableHead>
+                <TableHead className={`${th} text-center`}>Requested</TableHead>
+                <TableHead className={th}>QA/QC</TableHead>
+                <TableHead className={th}>Evidencing</TableHead>
                 <TableHead className={th}>ECC</TableHead>
+                <TableHead className={`${th} text-center`}>Confirmed</TableHead>
                 <TableHead className={th}>W-8 type</TableHead>
                 <TableHead className={`${th} text-center`}>W-8 CF</TableHead>
                 <TableHead className={`${th} text-center`}>W-8 match</TableHead>
@@ -364,7 +384,7 @@ export function ClientsTable({
                   />
                 </TableHead>
                 <TableHead className={`${th} text-center`}>Paid</TableHead>
-                <TableHead className="w-[44px]" />
+                <TableHead className="w-[72px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -410,9 +430,12 @@ export function ClientsTable({
                     <PipelineProgress cs={r} />
                   </TableCell>
                   <TableCell>
-                    <InlineBool
-                      value={r.legalEntitySetup}
-                      onChange={(v) => patch(r.id, { legalEntitySetup: v })}
+                    <InlineEnum
+                      value={r.boundariesStatus}
+                      onChange={(v) =>
+                        patch(r.id, { boundariesStatus: v as never })
+                      }
+                      options={DATA_STATUS_OPTIONS}
                     />
                   </TableCell>
                   <TableCell>
@@ -424,28 +447,21 @@ export function ClientsTable({
                   </TableCell>
                   <TableCell>
                     <InlineBool
+                      value={r.legalEntitySetup}
+                      onChange={(v) => patch(r.id, { legalEntitySetup: v })}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <InlineBool
                       value={r.fieldRequested}
                       onChange={(v) => patch(r.id, { fieldRequested: v })}
                     />
                   </TableCell>
                   <TableCell>
                     <InlineEnum
-                      value={r.qaqcNpks}
-                      onChange={(v) => patch(r.id, { qaqcNpks: v as never })}
-                      options={QAQC_NPKS_OPTIONS}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <InlineEnum
-                      value={r.qaqcFlags}
-                      onChange={(v) => patch(r.id, { qaqcFlags: v as never })}
-                      options={QAQC_FLAGS_OPTIONS}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <InlineBool
-                      value={r.fieldConfirmed}
-                      onChange={(v) => patch(r.id, { fieldConfirmed: v })}
+                      value={r.qaqc}
+                      onChange={(v) => patch(r.id, { qaqc: v as never })}
+                      options={QAQC_STATUS_OPTIONS}
                     />
                   </TableCell>
                   <TableCell>
@@ -460,6 +476,12 @@ export function ClientsTable({
                       value={r.ecc}
                       onChange={(v) => patch(r.id, { ecc: v as never })}
                       options={ECC_STATUS_OPTIONS}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <InlineBool
+                      value={r.fieldConfirmed}
+                      onChange={(v) => patch(r.id, { fieldConfirmed: v })}
                     />
                   </TableCell>
                   <TableCell>
@@ -520,12 +542,23 @@ export function ClientsTable({
                     />
                   </TableCell>
                   <TableCell>
-                    <Link
-                      href={`/clients/${r.clientId}`}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Link>
+                    <div className="flex items-center justify-end gap-1">
+                      <Link
+                        href={`/clients/${r.clientId}`}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        title="Delete grower"
+                        onClick={() => onDeleteGrower(r)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
