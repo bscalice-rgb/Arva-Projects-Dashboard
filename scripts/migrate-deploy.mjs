@@ -4,6 +4,10 @@
 //  - prefers an unpooled/direct URL when the platform provides one
 //  - falls back to de-pooling a Neon "-pooler" hostname
 //  - raises Prisma's 5s connect_timeout to ride out cold starts
+//  - disables the migration advisory lock (a lock leaked through a pooler by a
+//    previously killed migrate surfaces as P1002 forever; harmless here since
+//    only one deploy migrates at a time). Opt back in with
+//    PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=0.
 //  - retries transient failures (P1002 timeouts) with backoff
 // Queries at runtime still use DATABASE_URL as-is; this only affects migrations.
 
@@ -11,12 +15,14 @@ import { spawnSync } from "node:child_process";
 
 function resolveMigrateUrl() {
   // Unpooled URLs injected by the Vercel/Neon integrations, in order of preference.
-  const direct =
-    process.env.DIRECT_DATABASE_URL ||
-    process.env.DIRECT_URL ||
-    process.env.DATABASE_URL_UNPOOLED ||
-    process.env.POSTGRES_URL_NON_POOLING;
-  let url = direct || process.env.DATABASE_URL;
+  const candidates = [
+    ["DIRECT_DATABASE_URL", process.env.DIRECT_DATABASE_URL],
+    ["DIRECT_URL", process.env.DIRECT_URL],
+    ["DATABASE_URL_UNPOOLED", process.env.DATABASE_URL_UNPOOLED],
+    ["POSTGRES_URL_NON_POOLING", process.env.POSTGRES_URL_NON_POOLING],
+  ];
+  const direct = candidates.find(([, v]) => v);
+  let [source, url] = direct ?? ["DATABASE_URL", process.env.DATABASE_URL];
   if (!url) {
     console.error("migrate-deploy: DATABASE_URL is not set.");
     process.exit(1);
@@ -34,8 +40,14 @@ function resolveMigrateUrl() {
       u.searchParams.set("connect_timeout", "30");
     }
     url = u.toString();
+    console.log(
+      `migrate-deploy: migrating via ${source} (host ${u.hostname}${
+        u.hostname.includes("-pooler") ? " — WARNING: pooled host" : ""
+      })`,
+    );
   } catch {
     // Not URL-parseable (unusual DSN form) — use it untouched.
+    console.log(`migrate-deploy: migrating via ${source} (unparseable DSN, used as-is)`);
   }
   return url;
 }
@@ -50,7 +62,12 @@ const attempts = 3;
 for (let i = 1; i <= attempts; i++) {
   const res = spawnSync("npx", ["prisma", "migrate", "deploy"], {
     stdio: "inherit",
-    env: { ...process.env, DATABASE_URL: url },
+    env: {
+      ...process.env,
+      DATABASE_URL: url,
+      PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK:
+        process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK ?? "1",
+    },
   });
   if (res.status === 0) process.exit(0);
   if (i < attempts) {
