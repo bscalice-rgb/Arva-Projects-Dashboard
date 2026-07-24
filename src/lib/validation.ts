@@ -85,7 +85,7 @@ export const millSchema = z.object({
   name: nonEmptyString,
   crop: z.nativeEnum(Crop),
   country: z.nativeEnum(Country),
-  region: optionalString,
+  regionId: optionalString,
   groupId: optionalString,
   notes: optionalString,
 });

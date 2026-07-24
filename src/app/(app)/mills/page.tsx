@@ -7,16 +7,24 @@ export const dynamic = "force-dynamic";
 
 export default async function MillsPage() {
   const userId = getCurrentUserId();
-  const [mills, groups] = await Promise.all([
+  const [mills, groups, regions] = await Promise.all([
     prisma.mill.findMany({
       where: { userId },
       orderBy: { name: "asc" },
-      include: { _count: { select: { clients: true } } },
+      include: {
+        _count: { select: { clients: true } },
+        region: { select: { name: true } },
+      },
     }),
     prisma.millGroup.findMany({
       where: { userId },
       orderBy: { name: "asc" },
       include: { _count: { select: { mills: true } } },
+    }),
+    prisma.region.findMany({
+      where: { userId },
+      orderBy: [{ country: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, country: true },
     }),
   ]);
 
@@ -32,11 +40,13 @@ export default async function MillsPage() {
           name: m.name,
           crop: m.crop,
           country: m.country,
-          region: m.region,
+          regionId: m.regionId,
+          regionName: m.region?.name ?? null,
           notes: m.notes,
           groupId: m.groupId,
           clientCount: m._count.clients,
         }))}
+        regions={regions}
         groups={groups.map((g) => ({
           id: g.id,
           name: g.name,

@@ -135,6 +135,7 @@ model Region {
   user        User?        @relation(fields: [userId], references: [id])
   clients     Client[]     @relation("ClientRegions")
   supplySheds SupplyShed[]
+  mills       Mill[]
 
   @@unique([userId, country, name])
   @@index([userId])
@@ -253,17 +254,19 @@ model Mill {
   name      String
   crop      Crop
   country   Country
-  region    String?
+  regionId  String?
   notes     String?
   groupId   String?
   userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  region  Region?    @relation(fields: [regionId], references: [id])
   group   MillGroup? @relation(fields: [groupId], references: [id])
   user    User?      @relation(fields: [userId], references: [id])
   clients Client[]
 
+  @@index([regionId])
   @@index([groupId])
   @@index([userId])
 }

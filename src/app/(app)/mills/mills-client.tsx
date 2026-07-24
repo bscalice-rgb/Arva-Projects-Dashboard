@@ -44,11 +44,14 @@ type MillRow = {
   name: string;
   crop: Crop;
   country: Country;
-  region: string | null;
+  regionId: string | null;
+  regionName: string | null;
   notes: string | null;
   groupId: string | null;
   clientCount: number;
 };
+
+type RegionOption = { id: string; name: string; country: Country };
 
 type GroupRow = {
   id: string;
@@ -62,7 +65,7 @@ const emptyMill = {
   name: "",
   crop: "SUGARCANE" as Crop,
   country: "" as Country | "",
-  region: "",
+  regionId: "",
   groupId: "",
   notes: "",
 };
@@ -76,9 +79,11 @@ const emptyGroup = {
 export function MillsClient({
   mills,
   groups,
+  regions,
 }: {
   mills: MillRow[];
   groups: GroupRow[];
+  regions: RegionOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -107,7 +112,7 @@ export function MillsClient({
       name: row.name,
       crop: row.crop,
       country: row.country,
-      region: row.region ?? "",
+      regionId: row.regionId ?? "",
       groupId: row.groupId ?? "",
       notes: row.notes ?? "",
     });
@@ -121,7 +126,7 @@ export function MillsClient({
         name: form.name,
         crop: form.crop,
         country: form.country || undefined,
-        region: form.region || null,
+        regionId: form.regionId || null,
         groupId: form.groupId || null,
         notes: form.notes || null,
       };
@@ -214,7 +219,7 @@ export function MillsClient({
         <TableCell>{CROP_LABELS[m.crop]}</TableCell>
         <TableCell>{COUNTRY_LABELS[m.country]}</TableCell>
         <TableCell className="text-muted-foreground">
-          {m.region ?? "—"}
+          {m.regionName ?? "—"}
         </TableCell>
         <TableCell className="text-right">{m.clientCount}</TableCell>
         <TableCell>
@@ -373,15 +378,34 @@ export function MillsClient({
                 required
                 value={form.country || undefined}
                 onChange={(v) =>
-                  setForm((f) => ({ ...f, country: v as Country }))
+                  setForm((f) => ({
+                    ...f,
+                    country: v as Country,
+                    regionId: "", // regions depend on country
+                  }))
                 }
                 options={COUNTRY_OPTIONS}
               />
-              <TextField
-                label="Region / Province"
-                value={form.region}
-                onChange={(v) => setForm((f) => ({ ...f, region: v }))}
-              />
+              <div>
+                <SelectField
+                  label="Region / State"
+                  value={form.regionId || undefined}
+                  onChange={(v) => setForm((f) => ({ ...f, regionId: v }))}
+                  includeEmpty
+                  emptyLabel="None"
+                  placeholder={form.country ? "None" : "Pick a country first"}
+                  options={regions
+                    .filter((r) => r.country === form.country)
+                    .map((r) => ({ value: r.id, label: r.name }))}
+                />
+                {form.country &&
+                  regions.every((r) => r.country !== form.country) && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      No regions set up for this country yet — add them under
+                      Seasons → Countries & Regions.
+                    </p>
+                  )}
+              </div>
             </div>
             <TextAreaField
               label="Notes"
