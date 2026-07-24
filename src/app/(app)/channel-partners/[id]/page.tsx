@@ -41,7 +41,7 @@ export default async function CpDetailPage({
     );
   }
 
-  const [cpSeason, clientSeasons, mills, regions] = await Promise.all([
+  const [cpSeason, prevCpSeason, clientSeasons, mills, regions] = await Promise.all([
     prisma.channelPartnerSeason.findUnique({
       where: {
         channelPartnerId_seasonId: {
@@ -50,6 +50,13 @@ export default async function CpDetailPage({
         },
       },
       include: { payees: { orderBy: { createdAt: "asc" } } },
+    }),
+    // Most recent earlier season this CP was set up for — used to hint
+    // "on file last year, re-collect for this season".
+    prisma.channelPartnerSeason.findFirst({
+      where: { channelPartnerId: id, season: { year: { lt: season.year } } },
+      orderBy: { season: { year: "desc" } },
+      include: { season: { select: { label: true } } },
     }),
     prisma.clientSeason.findMany({
       where: {
@@ -105,6 +112,16 @@ export default async function CpDetailPage({
               bankDetails: cpSeason.bankDetails,
               paymentDone: cpSeason.paymentDone,
               agreementComments: cpSeason.agreementComments,
+            }
+          : null
+      }
+      prevCompliance={
+        prevCpSeason
+          ? {
+              seasonLabel: prevCpSeason.season.label,
+              agreementSigned: prevCpSeason.agreementSigned,
+              w8Provided: prevCpSeason.w8Provided,
+              bankDetails: prevCpSeason.bankDetails,
             }
           : null
       }

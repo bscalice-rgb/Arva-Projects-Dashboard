@@ -45,15 +45,29 @@ import {
   CONTRACT_STATUS_OPTIONS,
 } from "@/lib/enums";
 import { getPipelineStatus, PIPELINE_STAGES } from "@/lib/pipeline";
+import type { Country } from "@prisma/client";
 import { formatNumber, formatUsd } from "@/lib/utils";
 import { toCsv, downloadCsv, type CsvColumn } from "@/lib/csv";
 import type { ClientSeasonRow } from "./types";
-import { patchClientSeason, deleteClient } from "./actions";
+import {
+  patchClientSeason,
+  deleteClient,
+  addClientToSeason,
+} from "./actions";
+
+export type NotInSeasonRow = {
+  id: string;
+  name: string;
+  country: Country;
+  channelPartnerName: string | null;
+  lastSeasonLabel: string | null;
+};
 
 type SortKey = "client" | "progress" | "delivered" | "amount";
 
 export function ClientsTable({
   rows: initialRows,
+  notInSeason,
   channelPartners,
   mills,
   regions,
@@ -62,6 +76,7 @@ export function ClientsTable({
   seasonLabel,
 }: {
   rows: ClientSeasonRow[];
+  notInSeason: NotInSeasonRow[];
   channelPartners: CpOption[];
   mills: MillOption[];
   regions: RegionOption[];
@@ -94,6 +109,15 @@ export function ClientsTable({
         alert(res.error);
         router.refresh();
       }
+    });
+  }
+
+  function onAddToSeason(clientId: string) {
+    if (!seasonId) return;
+    startTransition(async () => {
+      const res = await addClientToSeason(clientId, seasonId);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
     });
   }
 
@@ -563,6 +587,57 @@ export function ClientsTable({
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {notInSeason.length > 0 && (
+        <div className="rounded-lg border border-dashed">
+          <div className="border-b border-dashed px-4 py-3">
+            <h2 className="text-sm font-semibold">
+              Existing growers not in {seasonLabel} ({notInSeason.length})
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              These growers are already in the database from previous seasons.
+              Add them to {seasonLabel} to keep managing them under the same
+              record — no need to re-create them.
+            </p>
+          </div>
+          <Table>
+            <TableBody>
+              {notInSeason.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">
+                    <Link href={`/clients/${c.id}`} className="hover:underline">
+                      {c.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    {c.channelPartnerName ?? (
+                      <Badge variant="muted">Direct</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {COUNTRY_LABELS[c.country]}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {c.lastSeasonLabel
+                      ? `Last active: ${c.lastSeasonLabel}`
+                      : "Never enrolled in a season"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending || !seasonId}
+                      onClick={() => onAddToSeason(c.id)}
+                    >
+                      <Plus className="h-4 w-4" /> Add to {seasonLabel}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

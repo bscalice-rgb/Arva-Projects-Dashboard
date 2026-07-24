@@ -54,6 +54,13 @@ import type { ClientSeasonRow } from "../types";
 
 type SeasonLink = { seasonId: string; label: string; clientSeasonId: string };
 
+type PrevSeasonInfo = {
+  label: string;
+  hadW8: boolean;
+  contractSigned: boolean;
+  bankDetails: boolean;
+};
+
 function toForm(r: ClientSeasonRow) {
   const n = (v: number | null) => (v == null ? "" : String(v));
   return {
@@ -103,6 +110,7 @@ export function ClientDetail({
   activeSeasonLabel,
   record,
   carriedForwardNote,
+  prevSeason,
 }: {
   identity: ClientIdentity;
   displayCountry: string;
@@ -120,6 +128,7 @@ export function ClientDetail({
   activeSeasonLabel: string | null;
   record: ClientSeasonRow | null;
   carriedForwardNote: string | null;
+  prevSeason: PrevSeasonInfo | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -326,7 +335,12 @@ export function ClientDetail({
                 </div>
               </CardHeader>
               <CardContent>
-                <PipelineStepper form={form} set={set} status={status} />
+                <PipelineStepper
+                  form={form}
+                  set={set}
+                  status={status}
+                  prevSeason={prevSeason}
+                />
               </CardContent>
             </Card>
 
@@ -431,10 +445,12 @@ function PipelineStepper({
   form,
   set,
   status,
+  prevSeason,
 }: {
   form: FormState;
   set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
   status: ReturnType<typeof getPipelineStatus> | null;
+  prevSeason: PrevSeasonInfo | null;
 }) {
   // Manual open/close overrides; stages without an override follow "is current".
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
@@ -521,6 +537,12 @@ function PipelineStepper({
       case "w8":
         return (
           <>
+            {prevSeason?.hadW8 && !form.w8Type && (
+              <PrevHint
+                what="A W-8"
+                seasonLabel={prevSeason.label}
+              />
+            )}
             <SelectField
               label="W-8 type"
               value={form.w8Type || undefined}
@@ -544,6 +566,19 @@ function PipelineStepper({
       case "contractBank":
         return (
           <>
+            {prevSeason?.contractSigned &&
+              form.contractStatus !== "SIGNED" && (
+                <PrevHint
+                  what="A signed contract"
+                  seasonLabel={prevSeason.label}
+                />
+              )}
+            {prevSeason?.bankDetails && !form.bankDetails && (
+              <PrevHint
+                what="Bank details"
+                seasonLabel={prevSeason.label}
+              />
+            )}
             <SelectField
               label="Contract status"
               value={form.contractStatus}
@@ -632,6 +667,21 @@ function PipelineStepper({
         );
       })}
     </ol>
+  );
+}
+
+/** "On file last season, not yet this season" reminder inside a stage. */
+function PrevHint({
+  what,
+  seasonLabel,
+}: {
+  what: string;
+  seasonLabel: string;
+}) {
+  return (
+    <p className="text-xs text-amber-600 dark:text-amber-500">
+      {what} was on file for {seasonLabel} — collect it again for this season.
+    </p>
   );
 }
 

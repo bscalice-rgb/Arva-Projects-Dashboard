@@ -93,6 +93,26 @@ export default async function ClientDetailPage({
     ? `Carried forward from ${activeCs.carriedForwardFrom.season.label}.`
     : null;
 
+  // Most recent earlier season record — used to hint "on file last year,
+  // re-collect for this season" on W-8 / contract / bank.
+  const activeYear =
+    activeCs?.season.year ??
+    (selectedSeason?.id === targetSeasonId ? selectedSeason.year : null);
+  const prevCs =
+    activeYear == null
+      ? null
+      : (client.seasons
+          .filter((s) => s.season.year < activeYear)
+          .sort((a, b) => b.season.year - a.season.year)[0] ?? null);
+  const prevSeason = prevCs
+    ? {
+        label: prevCs.season.label,
+        hadW8: prevCs.w8Type != null,
+        contractSigned: prevCs.contractStatus === "SIGNED",
+        bankDetails: prevCs.bankDetails,
+      }
+    : null;
+
   return (
     <ClientDetail
       identity={{
@@ -120,6 +140,7 @@ export default async function ClientDetailPage({
       activeSeasonLabel={activeSeasonLabel}
       record={record}
       carriedForwardNote={carriedForwardNote}
+      prevSeason={prevSeason}
     />
   );
 }
