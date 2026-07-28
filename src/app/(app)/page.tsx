@@ -61,6 +61,7 @@ export default async function DashboardPage() {
       select: {
         id: true,
         channelPartnerId: true,
+        clientId: true,
         crop: true,
         country: true,
         regionId: true,
@@ -121,6 +122,7 @@ export default async function DashboardPage() {
     deliveredAcres: cs.deliveredAcres,
     deliveredHectares: cs.deliveredHectares,
     client: {
+      id: cs.client.id,
       country: cs.client.country,
       regionIds: cs.client.regions.map((r) => r.id),
       orgNode: { channelPartnerId: cs.client.orgNode.channelPartnerId },

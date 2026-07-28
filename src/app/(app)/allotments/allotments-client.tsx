@@ -2,7 +2,14 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Target, Plus, Pencil, Trash2, Download } from "lucide-react";
+import {
+  Target,
+  Plus,
+  Pencil,
+  Trash2,
+  Download,
+  ChevronsUpDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -47,6 +54,8 @@ export type ShedRow = {
   country: Country;
   channelPartnerId: string | null;
   channelPartnerName: string | null;
+  clientId: string | null;
+  clientName: string | null;
   crop: Crop;
   regionId: string | null;
   regionName: string | null;
@@ -58,11 +67,13 @@ export type ShedRow = {
 };
 
 type CpOption = { id: string; entityName: string };
+type GrowerOption = { id: string; name: string; country: Country };
 type RegionOption = { id: string; name: string; country: Country };
 
 const empty = {
   country: "" as Country | "",
   channelPartnerId: "",
+  clientId: "",
   crop: "CORN" as Crop,
   regionId: "",
   acresNeeded: "",
@@ -70,15 +81,21 @@ const empty = {
   enteredInCropForce: false,
 };
 
+const DIRECT = "__direct__";
+
+type SortKey = "cp" | "crop" | "country" | "region";
+
 export function AllotmentsClient({
   rows,
   channelPartners,
+  directGrowers,
   regions,
   seasonId,
   seasonLabel,
 }: {
   rows: ShedRow[];
   channelPartners: CpOption[];
+  directGrowers: GrowerOption[];
   regions: RegionOption[];
   seasonId: string;
   seasonLabel: string;
@@ -89,12 +106,22 @@ export function AllotmentsClient({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(empty);
   const [error, setError] = useState<string | null>(null);
+  const [addedCount, setAddedCount] = useState(0);
   const [unit, setUnit] = useState<"ac" | "ha">("ac");
+
+  // Column filters + sort
+  const [fCp, setFCp] = useState(""); // "", DIRECT, or CP name
+  const [fCrop, setFCrop] = useState("");
+  const [fCountry, setFCountry] = useState("");
+  const [fRegion, setFRegion] = useState(""); // region name
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   function openCreate() {
     setEditingId(null);
     setForm(empty);
     setError(null);
+    setAddedCount(0);
     setOpen(true);
   }
   function openEdit(r: ShedRow) {
@@ -102,6 +129,7 @@ export function AllotmentsClient({
     setForm({
       country: r.country,
       channelPartnerId: r.channelPartnerId ?? "",
+      clientId: r.clientId ?? "",
       crop: r.crop,
       regionId: r.regionId ?? "",
       acresNeeded: String(r.acresNeeded),
@@ -109,13 +137,15 @@ export function AllotmentsClient({
       enteredInCropForce: r.enteredInCropForce,
     });
     setError(null);
+    setAddedCount(0);
     setOpen(true);
   }
-  function submit() {
+  function submit(addAnother = false) {
     setError(null);
     const payload = {
       country: form.country || undefined,
       channelPartnerId: form.channelPartnerId || null,
+      clientId: form.channelPartnerId ? null : form.clientId || null,
       crop: form.crop,
       regionId: form.regionId || null,
       acresNeeded: form.acresNeeded,
@@ -127,8 +157,20 @@ export function AllotmentsClient({
         ? await updateSupplyShed(editingId, payload)
         : await createSupplyShed(seasonId, payload);
       if (!res.ok) return setError(res.error);
-      setOpen(false);
-      router.refresh();
+      if (addAnother) {
+        // Keep the targeting fields for fast batch entry; clear the volumes.
+        setForm((f) => ({
+          ...f,
+          acresNeeded: "",
+          hectaresNeeded: "",
+          enteredInCropForce: false,
+        }));
+        setAddedCount((n) => n + 1);
+        router.refresh();
+      } else {
+        setOpen(false);
+        router.refresh();
+      }
     });
   }
   function onDelete(r: ShedRow) {
@@ -140,8 +182,66 @@ export function AllotmentsClient({
     });
   }
 
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const cpDisplay = (r: ShedRow) =>
+    r.channelPartnerName ?? (r.clientName ? `Direct · ${r.clientName}` : "Direct");
+
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (fCp === DIRECT && r.channelPartnerName != null) return false;
+      if (fCp && fCp !== DIRECT && r.channelPartnerName !== fCp) return false;
+      if (fCrop && r.crop !== fCrop) return false;
+      if (fCountry && r.country !== fCountry) return false;
+      if (fRegion && (r.regionName ?? "—") !== fRegion) return false;
+      return true;
+    });
+  }, [rows, fCp, fCrop, fCountry, fRegion]);
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const val = (r: ShedRow): string => {
+      switch (sortKey) {
+        case "cp":
+          return cpDisplay(r).toLowerCase();
+        case "crop":
+          return CROP_LABELS[r.crop].toLowerCase();
+        case "country":
+          return COUNTRY_LABELS[r.country].toLowerCase();
+        case "region":
+          return (r.regionName ?? "").toLowerCase();
+        default:
+          return "";
+      }
+    };
+    return [...filtered].sort((a, b) => val(a).localeCompare(val(b)) * dir);
+  }, [filtered, sortKey, sortDir]);
+
+  // Filter options derived from the data actually present.
+  const cpFilterOptions = useMemo(() => {
+    const names = [
+      ...new Set(rows.map((r) => r.channelPartnerName).filter(Boolean)),
+    ] as string[];
+    return [
+      { value: DIRECT, label: "Direct (no CP)" },
+      ...names.sort().map((n) => ({ value: n, label: n })),
+    ];
+  }, [rows]);
+  const regionFilterOptions = useMemo(() => {
+    const names = [...new Set(rows.map((r) => r.regionName ?? "—"))];
+    return names.sort().map((n) => ({ value: n, label: n }));
+  }, [rows]);
+
   const totals = useMemo(() => {
-    return rows.reduce(
+    return filtered.reduce(
       (acc, r) => {
         acc.needed += unit === "ac" ? r.acresNeeded : r.hectaresNeeded;
         acc.loaded += unit === "ac" ? r.acresLoaded : r.hectaresLoaded;
@@ -149,15 +249,12 @@ export function AllotmentsClient({
       },
       { needed: 0, loaded: 0 },
     );
-  }, [rows, unit]);
+  }, [filtered, unit]);
 
   function exportCsv() {
     const cols: CsvColumn<ShedRow>[] = [
       { header: "Country", value: (r) => COUNTRY_LABELS[r.country] },
-      {
-        header: "Channel Partner",
-        value: (r) => r.channelPartnerName ?? "Direct",
-      },
+      { header: "Channel Partner", value: (r) => cpDisplay(r) },
       { header: "Crop", value: (r) => CROP_LABELS[r.crop] },
       { header: "Region", value: (r) => r.regionName },
       { header: "Acres needed", value: (r) => Math.round(r.acresNeeded) },
@@ -176,31 +273,71 @@ export function AllotmentsClient({
     ];
     downloadCsv(
       `allotments-${seasonLabel.replace(/\s+/g, "-").toLowerCase()}.csv`,
-      toCsv(rows, cols),
+      toCsv(sorted, cols),
     );
   }
 
+  const isDirect = !form.channelPartnerId;
+
   return (
     <div className="space-y-4">
+      {/* Filters */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <SelectField
+          label=""
+          value={fCp || undefined}
+          onChange={setFCp}
+          options={cpFilterOptions}
+          includeEmpty
+          emptyLabel="All CP / Direct"
+          placeholder="All CP / Direct"
+        />
+        <SelectField
+          label=""
+          value={fCrop || undefined}
+          onChange={setFCrop}
+          options={CROP_OPTIONS}
+          includeEmpty
+          emptyLabel="All crops"
+          placeholder="All crops"
+        />
+        <SelectField
+          label=""
+          value={fCountry || undefined}
+          onChange={setFCountry}
+          options={COUNTRY_OPTIONS}
+          includeEmpty
+          emptyLabel="All countries"
+          placeholder="All countries"
+        />
+        <SelectField
+          label=""
+          value={fRegion || undefined}
+          onChange={setFRegion}
+          options={regionFilterOptions}
+          includeEmpty
+          emptyLabel="All regions"
+          placeholder="All regions"
+        />
+        <SelectField
+          label=""
+          value={unit}
+          onChange={(v) => setUnit(v as "ac" | "ha")}
+          options={[
+            { value: "ac", label: "Acres" },
+            { value: "ha", label: "Hectares" },
+          ]}
+        />
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <SelectField
-            label=""
-            value={unit}
-            onChange={(v) => setUnit(v as "ac" | "ha")}
-            options={[
-              { value: "ac", label: "Acres" },
-              { value: "ha", label: "Hectares" },
-            ]}
-          />
-          <p className="text-sm text-muted-foreground">
-            {seasonLabel} · Needed {formatNumber(totals.needed)} · Loaded{" "}
-            {formatNumber(totals.loaded)} · Balance{" "}
-            {formatNumber(totals.needed - totals.loaded)}
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {filtered.length} of {rows.length} · {seasonLabel} · Needed{" "}
+          {formatNumber(totals.needed)} · Loaded {formatNumber(totals.loaded)} ·
+          Balance {formatNumber(totals.needed - totals.loaded)}
+        </p>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={exportCsv} disabled={!rows.length}>
+          <Button variant="outline" onClick={exportCsv} disabled={!sorted.length}>
             <Download className="h-4 w-4" /> Export CSV
           </Button>
           <Button onClick={openCreate}>
@@ -225,10 +362,38 @@ export function AllotmentsClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Channel Partner</TableHead>
-                <TableHead>Crop</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>Region</TableHead>
+                <TableHead>
+                  <SortHead
+                    label="Channel Partner"
+                    active={sortKey === "cp"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("cp")}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortHead
+                    label="Crop"
+                    active={sortKey === "crop"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("crop")}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortHead
+                    label="Country"
+                    active={sortKey === "country"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("country")}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortHead
+                    label="Region"
+                    active={sortKey === "region"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("region")}
+                  />
+                </TableHead>
                 <TableHead className="text-right">Needed</TableHead>
                 <TableHead className="text-right">Loaded</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
@@ -238,7 +403,7 @@ export function AllotmentsClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => {
+              {sorted.map((r) => {
                 const needed = unit === "ac" ? r.acresNeeded : r.hectaresNeeded;
                 const loaded = unit === "ac" ? r.acresLoaded : r.hectaresLoaded;
                 const balance = needed - loaded;
@@ -248,7 +413,12 @@ export function AllotmentsClient({
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">
                       {r.channelPartnerName ?? (
-                        <Badge variant="muted">Direct</Badge>
+                        <span className="flex items-center gap-1.5">
+                          <Badge variant="muted">Direct</Badge>
+                          {r.clientName && (
+                            <span className="text-sm">{r.clientName}</span>
+                          )}
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>{CROP_LABELS[r.crop]}</TableCell>
@@ -320,7 +490,9 @@ export function AllotmentsClient({
             <SelectField
               label="Channel Partner"
               value={form.channelPartnerId || undefined}
-              onChange={(v) => setForm((f) => ({ ...f, channelPartnerId: v }))}
+              onChange={(v) =>
+                setForm((f) => ({ ...f, channelPartnerId: v, clientId: "" }))
+              }
               options={channelPartners.map((cp) => ({
                 value: cp.id,
                 label: cp.entityName,
@@ -328,6 +500,26 @@ export function AllotmentsClient({
               includeEmpty
               emptyLabel="Direct (no CP)"
             />
+            {isDirect && (
+              <div>
+                <SelectField
+                  label="Grower (direct sourcing)"
+                  value={form.clientId || undefined}
+                  onChange={(v) => setForm((f) => ({ ...f, clientId: v }))}
+                  options={directGrowers.map((g) => ({
+                    value: g.id,
+                    label: `${g.name} — ${COUNTRY_LABELS[g.country]}`,
+                  }))}
+                  includeEmpty
+                  emptyLabel="Any direct grower"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Direct means the acres are sourced straight from the grower,
+                  with no Channel Partner in between. Pick a grower to pin this
+                  target to them, or leave as “Any direct grower”.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <SelectField
                 label="Crop"
@@ -375,18 +567,61 @@ export function AllotmentsClient({
               Loaded volume is computed automatically from the delivered area of
               matching client-season records.
             </p>
+            {addedCount > 0 && !error && (
+              <p className="text-sm text-success">
+                {addedCount} allotment{addedCount === 1 ? "" : "s"} added — keep
+                going or close.
+              </p>
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              {addedCount > 0 ? "Done" : "Cancel"}
             </Button>
-            <Button onClick={submit} disabled={pending}>
+            {!editingId && (
+              <Button
+                variant="secondary"
+                onClick={() => submit(true)}
+                disabled={pending}
+              >
+                {pending ? "Saving…" : "Save & add another"}
+              </Button>
+            )}
+            <Button onClick={() => submit(false)} disabled={pending}>
               {pending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function SortHead({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 hover:text-foreground ${
+        active ? "text-foreground" : ""
+      }`}
+    >
+      {label}
+      <ChevronsUpDown className="h-3 w-3 opacity-60" />
+      {active && (
+        <span className="text-[10px]">{dir === "asc" ? "▲" : "▼"}</span>
+      )}
+    </button>
   );
 }

@@ -164,6 +164,8 @@ export type ClientSeasonPatch = z.infer<typeof clientSeasonPatchSchema>;
 export const supplyShedSchema = z.object({
   country: z.nativeEnum(Country),
   channelPartnerId: optionalString,
+  // Direct (no CP) allotments may target a specific grower.
+  clientId: optionalString,
   crop: z.nativeEnum(Crop),
   regionId: optionalString,
   acresNeeded: z.preprocess((v) => {

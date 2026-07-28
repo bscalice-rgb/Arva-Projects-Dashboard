@@ -18,6 +18,8 @@ export async function createSupplyShed(
       seasonId,
       country: d.country,
       channelPartnerId: d.channelPartnerId,
+      // Grower pinning only applies to Direct (no CP) allotments.
+      clientId: d.channelPartnerId ? null : d.clientId,
       crop: d.crop,
       regionId: d.regionId,
       acresNeeded: d.acresNeeded,
@@ -43,6 +45,7 @@ export async function updateSupplyShed(
     data: {
       country: d.country,
       channelPartnerId: d.channelPartnerId,
+      clientId: d.channelPartnerId ? null : d.clientId,
       crop: d.crop,
       regionId: d.regionId,
       acresNeeded: d.acresNeeded,

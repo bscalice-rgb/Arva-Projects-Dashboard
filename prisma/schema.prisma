@@ -218,11 +218,12 @@ model Client {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  orgNode OrgNode        @relation(fields: [orgNodeId], references: [id], onDelete: Cascade)
-  mill    Mill?          @relation(fields: [millId], references: [id])
-  user    User?          @relation(fields: [userId], references: [id])
-  regions Region[]       @relation("ClientRegions")
-  seasons ClientSeason[]
+  orgNode     OrgNode        @relation(fields: [orgNodeId], references: [id], onDelete: Cascade)
+  mill        Mill?          @relation(fields: [millId], references: [id])
+  user        User?          @relation(fields: [userId], references: [id])
+  regions     Region[]       @relation("ClientRegions")
+  seasons     ClientSeason[]
+  supplySheds SupplyShed[]
 
   @@index([orgNodeId])
   @@index([millId])
@@ -382,6 +383,8 @@ model SupplyShed {
   seasonId           String
   country            Country
   channelPartnerId   String?
+  // For Direct (no CP) allotments: optionally source straight from one grower.
+  clientId           String?
   crop               Crop
   regionId           String?
   acresNeeded        Float    @default(0)
@@ -393,10 +396,12 @@ model SupplyShed {
 
   season         Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   channelPartner ChannelPartner? @relation(fields: [channelPartnerId], references: [id])
+  client         Client?         @relation(fields: [clientId], references: [id])
   region         Region?         @relation(fields: [regionId], references: [id])
   user           User?           @relation(fields: [userId], references: [id])
 
   @@index([seasonId])
   @@index([channelPartnerId])
+  @@index([clientId])
   @@index([regionId])
 }
