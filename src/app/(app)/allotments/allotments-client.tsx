@@ -239,6 +239,18 @@ export function AllotmentsClient({
     const names = [...new Set(rows.map((r) => r.regionName ?? "—"))];
     return names.sort().map((n) => ({ value: n, label: n }));
   }, [rows]);
+  const cropFilterOptions = useMemo(() => {
+    const crops = [...new Set(rows.map((r) => r.crop))];
+    return crops
+      .map((c) => ({ value: c, label: CROP_LABELS[c] }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [rows]);
+  const countryFilterOptions = useMemo(() => {
+    const countries = [...new Set(rows.map((r) => r.country))];
+    return countries
+      .map((c) => ({ value: c, label: COUNTRY_LABELS[c] }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [rows]);
 
   const totals = useMemo(() => {
     return filtered.reduce(
@@ -296,7 +308,7 @@ export function AllotmentsClient({
           label=""
           value={fCrop || undefined}
           onChange={setFCrop}
-          options={CROP_OPTIONS}
+          options={cropFilterOptions}
           includeEmpty
           emptyLabel="All crops"
           placeholder="All crops"
@@ -305,7 +317,7 @@ export function AllotmentsClient({
           label=""
           value={fCountry || undefined}
           onChange={setFCountry}
-          options={COUNTRY_OPTIONS}
+          options={countryFilterOptions}
           includeEmpty
           emptyLabel="All countries"
           placeholder="All countries"
