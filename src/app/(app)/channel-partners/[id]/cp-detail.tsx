@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -120,7 +120,7 @@ export function CpDetail({
 
   if (!cpSeason) {
     return (
-      <Wrapper cpName={cpName} cpTypeLabel={cpTypeLabel} countryLabel={countryLabel}>
+      <Wrapper cpName={cpName} cpTypeLabel={cpTypeLabel} countryLabel={countryLabel} reportHref={`/report/cp/${cpId}?season=${seasonId}`}>
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
             <p className="text-sm text-muted-foreground">
@@ -146,7 +146,7 @@ export function CpDetail({
   const { payouts, total } = computePayouts(payees, agg.growerPayments);
 
   return (
-    <Wrapper cpName={cpName} cpTypeLabel={cpTypeLabel} countryLabel={countryLabel}>
+    <Wrapper cpName={cpName} cpTypeLabel={cpTypeLabel} countryLabel={countryLabel} reportHref={`/report/cp/${cpId}?season=${seasonId}`}>
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Compliance */}
         <ComplianceCard
@@ -283,26 +283,37 @@ function Wrapper({
   cpName,
   cpTypeLabel,
   countryLabel,
+  reportHref,
   children,
 }: {
   cpName: string;
   cpTypeLabel: string;
   countryLabel: string;
+  reportHref: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-6">
-      <div>
-        <Button variant="ghost" size="sm" asChild className="mb-1 -ml-2">
-          <Link href="/channel-partners">
-            <ArrowLeft className="h-4 w-4" /> Channel Partners
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Button variant="ghost" size="sm" asChild className="mb-1 -ml-2">
+            <Link href="/channel-partners">
+              <ArrowLeft className="h-4 w-4" /> Channel Partners
+            </Link>
+          </Button>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{cpName}</h1>
+            <Badge variant="secondary">{cpTypeLabel}</Badge>
+            <span className="text-sm text-muted-foreground">
+              {countryLabel}
+            </span>
+          </div>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href={reportHref} target="_blank">
+            <FileText className="h-4 w-4" /> Partner report
           </Link>
         </Button>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{cpName}</h1>
-          <Badge variant="secondary">{cpTypeLabel}</Badge>
-          <span className="text-sm text-muted-foreground">{countryLabel}</span>
-        </div>
       </div>
       {children}
     </div>
