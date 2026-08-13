@@ -4,17 +4,62 @@ import { ArrowLeft, Check, X } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
-import {
-  getPipelineStatus,
-  PIPELINE_STAGES,
-  PIPELINE_STAGE_COUNT,
-} from "@/lib/pipeline";
+import type { PipelineInput } from "@/lib/pipeline";
 import { computeShedLoaded } from "@/lib/supply-shed";
 import { COUNTRY_LABELS, CROP_LABELS } from "@/lib/enums";
 import { formatNumber } from "@/lib/utils";
 import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
+
+// The progress checklist, grouped by category. One source of truth for the
+// page-1 progress bars, the "what we need next" list and the page-2 detail.
+type ReportItemCs = PipelineInput & { paymentDone: boolean };
+type ReportItem = { label: string; done: (cs: ReportItemCs) => boolean };
+type ReportCategory = { name: string; items: ReportItem[] };
+
+const REPORT_CATEGORIES: ReportCategory[] = [
+  {
+    name: "Data & evidence",
+    items: [
+      { label: "Boundaries", done: (cs) => cs.boundariesStatus === "DONE" },
+      { label: "Data", done: (cs) => cs.dataStatus === "DONE" },
+      { label: "QA/QC", done: (cs) => cs.qaqc === "DONE" },
+      { label: "Evidencing", done: (cs) => cs.evidencing === "ATTACHED" },
+    ],
+  },
+  {
+    name: "Enrollment",
+    items: [
+      { label: "Legal entity", done: (cs) => cs.legalEntitySetup },
+      { label: "Field requested", done: (cs) => cs.fieldRequested },
+      { label: "Field confirmed", done: (cs) => cs.fieldConfirmed },
+    ],
+  },
+  {
+    name: "Contract, bank & payment",
+    items: [
+      {
+        label: "W-8",
+        done: (cs) =>
+          cs.w8Type != null && cs.w8InCropForce && cs.w8MatchesLegalEntity,
+      },
+      {
+        label: "Contract",
+        done: (cs) =>
+          cs.contractStatus === "SIGNED" && cs.contractApprovedInCropForce,
+      },
+      { label: "Bank details", done: (cs) => cs.bankDetails },
+      { label: "Payment", done: (cs) => cs.paymentDone },
+    ],
+  },
+];
+
+// Flat, ordered view (category order → item order) for "next step" logic.
+const FLAT_ITEMS = REPORT_CATEGORIES.flatMap((c) =>
+  c.items.map((it) => ({ ...it, category: c.name })),
+);
+const TOTAL_ITEMS = FLAT_ITEMS.length;
 
 export default async function CpReportPage({
   params,
@@ -47,7 +92,7 @@ export default async function CpReportPage({
                 id: true,
                 name: true,
                 country: true,
-                regions: { select: { id: true } },
+                regions: { select: { id: true, name: true } },
                 orgNode: { select: { channelPartnerId: true } },
               },
             },
@@ -70,13 +115,7 @@ export default async function CpReportPage({
       ])
     : [[], null, []];
 
-  // Pipeline status per grower.
-  const withStatus = clientSeasons.map((cs) => ({
-    cs,
-    status: getPipelineStatus(cs),
-  }));
-  const total = withStatus.length;
-  const completeCount = withStatus.filter((w) => w.status.isComplete).length;
+  const total = clientSeasons.length;
   const enrolledHa = clientSeasons.reduce(
     (s, cs) => s + (cs.enrolledHectares ?? 0),
     0,
@@ -85,36 +124,42 @@ export default async function CpReportPage({
     (s, cs) => s + (cs.deliveredHectares ?? 0),
     0,
   );
+
+  // Completion checks across the categorized checklist.
+  const doneChecks = clientSeasons.reduce(
+    (n, cs) => n + FLAT_ITEMS.filter((it) => it.done(cs)).length,
+    0,
+  );
   const avgPct =
-    total > 0
-      ? Math.round(
-          (withStatus.reduce((s, w) => s + w.status.stageIndex, 0) /
-            (total * PIPELINE_STAGE_COUNT)) *
-            100,
-        )
-      : 0;
+    total > 0 ? Math.round((doneChecks / (total * TOTAL_ITEMS)) * 100) : 0;
+  const completeCount = clientSeasons.filter((cs) =>
+    FLAT_ITEMS.every((it) => it.done(cs)),
+  ).length;
 
-  // Per-stage completion — how many growers have each stage done (a funnel).
-  const stageProgress = PIPELINE_STAGES.map((stage, i) => {
-    const done = withStatus.filter((w) => w.status.completed[i]).length;
-    return {
-      label: stage.shortLabel,
-      done,
-      pct: total > 0 ? Math.round((done / total) * 100) : 0,
-    };
-  });
+  // Page-1 progress bars, grouped by category (growers with each item done).
+  const categoryProgress = REPORT_CATEGORIES.map((cat) => ({
+    name: cat.name,
+    items: cat.items.map((it) => {
+      const done = clientSeasons.filter((cs) => it.done(cs)).length;
+      return {
+        label: it.label,
+        done,
+        pct: total > 0 ? Math.round((done / total) * 100) : 0,
+      };
+    }),
+  }));
 
-  // "What we need next": growers grouped by their current (first incomplete) stage,
-  // ordered by pipeline position so the earliest blockers come first.
-  const nextSteps = new Map<number, { label: string; count: number }>();
-  for (const w of withStatus) {
-    if (w.status.isComplete) continue;
-    const key = w.status.stageIndex;
-    if (!nextSteps.has(key))
-      nextSteps.set(key, { label: w.status.currentStage, count: 0 });
-    nextSteps.get(key)!.count += 1;
+  // "What we need next": group growers by their first incomplete checklist item.
+  const nextCounts = new Map<number, { label: string; category: string; count: number }>();
+  for (const cs of clientSeasons) {
+    const idx = FLAT_ITEMS.findIndex((it) => !it.done(cs));
+    if (idx === -1) continue; // fully complete
+    const it = FLAT_ITEMS[idx];
+    if (!nextCounts.has(idx))
+      nextCounts.set(idx, { label: it.label, category: it.category, count: 0 });
+    nextCounts.get(idx)!.count += 1;
   }
-  const nextStepRows = [...nextSteps.entries()]
+  const nextStepRows = [...nextCounts.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([, v]) => v);
 
@@ -163,6 +208,20 @@ export default async function CpReportPage({
       toEnroll,
     };
   });
+
+  // Page 2 — per-grower detail (each grower's items by category).
+  const growerRows = clientSeasons.map((cs) => ({
+    id: cs.id,
+    name: cs.client.name,
+    crops: cs.crops.map((c) => CROP_LABELS[c]).join(", ") || "—",
+    regions: cs.client.regions.map((r) => r.name).join(", ") || "—",
+    enrolledHa: cs.enrolledHectares,
+    categories: REPORT_CATEGORIES.map((cat) => ({
+      name: cat.name,
+      items: cat.items.map((it) => ({ label: it.label, done: it.done(cs) })),
+    })),
+    doneCount: FLAT_ITEMS.filter((it) => it.done(cs)).length,
+  }));
 
   const generated = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -252,28 +311,40 @@ export default async function CpReportPage({
               />
             </div>
 
-            {/* Pipeline progress — where growers are, stage by stage */}
-            <Section title="Pipeline progress — growers past each step">
+            {/* Pipeline progress — grouped by category */}
+            <Section title="Pipeline progress — growers with each step done">
               {total === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No growers enrolled yet.
                 </p>
               ) : (
-                <div className="space-y-1.5">
-                  {stageProgress.map((st, i) => (
-                    <div key={st.label} className="flex items-center gap-3">
-                      <span className="w-28 shrink-0 text-xs text-muted-foreground">
-                        {i + 1}. {st.label}
-                      </span>
-                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className="h-full bg-primary"
-                          style={{ width: `${st.pct}%` }}
-                        />
+                <div className="space-y-3">
+                  {categoryProgress.map((cat) => (
+                    <div key={cat.name}>
+                      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">
+                        {cat.name}
                       </div>
-                      <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                        {st.done}/{total}
-                      </span>
+                      <div className="space-y-1.5">
+                        {cat.items.map((st) => (
+                          <div
+                            key={st.label}
+                            className="flex items-center gap-3"
+                          >
+                            <span className="w-28 shrink-0 text-xs text-muted-foreground">
+                              {st.label}
+                            </span>
+                            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                              <div
+                                className="h-full bg-primary"
+                                style={{ width: `${st.pct}%` }}
+                              />
+                            </div>
+                            <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                              {st.done}/{total}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -341,7 +412,7 @@ export default async function CpReportPage({
                       <ul className="space-y-1.5">
                         {nextStepRows.map((r) => (
                           <li
-                            key={r.label}
+                            key={`${r.category}-${r.label}`}
                             className="flex items-center gap-3 text-sm"
                           >
                             <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-2 text-xs font-semibold text-primary-foreground">
@@ -350,6 +421,10 @@ export default async function CpReportPage({
                             <span>
                               grower{r.count === 1 ? "" : "s"} — next:{" "}
                               <span className="font-medium">{r.label}</span>
+                              <span className="text-muted-foreground">
+                                {" "}
+                                ({r.category})
+                              </span>
                             </span>
                           </li>
                         ))}
@@ -388,10 +463,82 @@ export default async function CpReportPage({
               Confidential — prepared by Arva Intelligence for {cp.entityName}.
               Figures reflect program data as of {generated}.
             </p>
+
+            {/* ---- Page 2: per-grower detail ---- */}
+            {total > 0 && (
+              <div className="mt-10 break-before-page pt-2">
+                <div className="mb-4 flex items-center justify-between border-b pb-3">
+                  <div>
+                    <div className="text-lg font-bold text-primary">
+                      Grower detail
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {cp.entityName} · {season.label}
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Green = done · grey = pending
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {growerRows.map((g) => (
+                    <div
+                      key={g.id}
+                      className="break-inside-avoid rounded-md border p-3"
+                    >
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-semibold">{g.name}</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {g.doneCount}/{TOTAL_ITEMS} steps done
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {g.crops} · {g.regions} ·{" "}
+                        {g.enrolledHa != null
+                          ? `${formatNumber(g.enrolledHa)} ha enrolled`
+                          : "area TBD"}
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-3">
+                        {g.categories.map((cat) => (
+                          <div key={cat.name}>
+                            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              {cat.name}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {cat.items.map((it) => (
+                                <ItemChip
+                                  key={it.label}
+                                  label={it.label}
+                                  done={it.done}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function ItemChip({ label, done }: { label: string; done: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
+        done ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+      }`}
+    >
+      {done ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+      {label}
+    </span>
   );
 }
 
