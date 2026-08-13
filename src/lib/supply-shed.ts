@@ -13,6 +13,9 @@ type ClientSeasonForMatch = {
   crops: Crop[];
   deliveredAcres: number | null;
   deliveredHectares: number | null;
+  // Optional: enrolled area, for early/mid-season progress before delivery.
+  enrolledAcres?: number | null;
+  enrolledHectares?: number | null;
   client: {
     id: string;
     country: Country;
@@ -40,9 +43,16 @@ export function matchesShed(
   return cpMatch && cropMatch && countryMatch && regionMatch;
 }
 
-export type ShedLoaded = { loadedAcres: number; loadedHectares: number };
+export type ShedLoaded = {
+  /** Delivered (loaded) area — fills in late in the season. */
+  loadedAcres: number;
+  loadedHectares: number;
+  /** Enrolled area — available early/mid-season for progress tracking. */
+  enrolledAcres: number;
+  enrolledHectares: number;
+};
 
-/** Auto-roll-up loaded (delivered) area per allotment. */
+/** Auto-roll-up enrolled + delivered area per allotment from matching growers. */
 export function computeShedLoaded<T extends ShedKeyish & { id: string }>(
   sheds: T[],
   clientSeasons: ClientSeasonForMatch[],
@@ -51,13 +61,22 @@ export function computeShedLoaded<T extends ShedKeyish & { id: string }>(
   for (const shed of sheds) {
     let loadedAcres = 0;
     let loadedHectares = 0;
+    let enrolledAcres = 0;
+    let enrolledHectares = 0;
     for (const cs of clientSeasons) {
       if (matchesShed(shed, cs)) {
         loadedAcres += cs.deliveredAcres ?? 0;
         loadedHectares += cs.deliveredHectares ?? 0;
+        enrolledAcres += cs.enrolledAcres ?? 0;
+        enrolledHectares += cs.enrolledHectares ?? 0;
       }
     }
-    map.set(shed.id, { loadedAcres, loadedHectares });
+    map.set(shed.id, {
+      loadedAcres,
+      loadedHectares,
+      enrolledAcres,
+      enrolledHectares,
+    });
   }
   return map;
 }

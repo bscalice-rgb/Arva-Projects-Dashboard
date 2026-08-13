@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
 import {
   getPipelineStatus,
+  PIPELINE_STAGES,
   PIPELINE_STAGE_COUNT,
 } from "@/lib/pipeline";
 import { computeShedLoaded } from "@/lib/supply-shed";
@@ -93,6 +94,16 @@ export default async function CpReportPage({
         )
       : 0;
 
+  // Per-stage completion — how many growers have each stage done (a funnel).
+  const stageProgress = PIPELINE_STAGES.map((stage, i) => {
+    const done = withStatus.filter((w) => w.status.completed[i]).length;
+    return {
+      label: stage.shortLabel,
+      done,
+      pct: total > 0 ? Math.round((done / total) * 100) : 0,
+    };
+  });
+
   // "What we need next": growers grouped by their current (first incomplete) stage,
   // ordered by pipeline position so the earliest blockers come first.
   const nextSteps = new Map<number, { label: string; count: number }>();
@@ -118,6 +129,8 @@ export default async function CpReportPage({
     crops: cs.crops,
     deliveredAcres: cs.deliveredAcres,
     deliveredHectares: cs.deliveredHectares,
+    enrolledAcres: cs.enrolledAcres,
+    enrolledHectares: cs.enrolledHectares,
     client: {
       id: cs.client.id,
       country: cs.client.country,
@@ -127,17 +140,27 @@ export default async function CpReportPage({
   }));
   const loaded = computeShedLoaded(sheds, csForMatch);
   const allotments = sheds.map((s) => {
-    const l = loaded.get(s.id) ?? { loadedAcres: 0, loadedHectares: 0 };
+    const l = loaded.get(s.id) ?? {
+      loadedHectares: 0,
+      enrolledHectares: 0,
+    };
     const needed = s.hectaresNeeded;
-    const balance = needed - l.loadedHectares;
-    const pct = needed > 0 ? Math.round((l.loadedHectares / needed) * 100) : 0;
+    const enrolled = l.enrolledHectares;
+    const delivered = l.loadedHectares;
+    const enrolledPct =
+      needed > 0 ? Math.round((enrolled / needed) * 100) : 0;
+    const deliveredPct =
+      needed > 0 ? Math.round((delivered / needed) * 100) : 0;
+    const toEnroll = needed - enrolled;
     return {
       id: s.id,
       label: `${CROP_LABELS[s.crop]}${s.region ? ` · ${s.region.name}` : ""} · ${COUNTRY_LABELS[s.country]}`,
       needed,
-      loaded: l.loadedHectares,
-      balance,
-      pct,
+      enrolled,
+      delivered,
+      enrolledPct,
+      deliveredPct,
+      toEnroll,
     };
   });
 
@@ -193,14 +216,32 @@ export default async function CpReportPage({
           </p>
         ) : (
           <>
+            {/* Overall progress banner */}
+            <div className="mt-5 rounded-lg border bg-secondary/40 p-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-semibold">
+                  Overall pipeline progress
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {completeCount} of {total} growers complete
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-3">
+                <div className="h-3 flex-1 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full bg-primary"
+                    style={{ width: `${avgPct}%` }}
+                  />
+                </div>
+                <span className="text-lg font-bold tabular-nums text-primary">
+                  {avgPct}%
+                </span>
+              </div>
+            </div>
+
             {/* KPIs */}
-            <div className="mt-5 grid grid-cols-4 gap-3">
+            <div className="mt-4 grid grid-cols-3 gap-3">
               <Kpi label="Growers enrolled" value={formatNumber(total)} />
-              <Kpi
-                label="Growers complete"
-                value={`${completeCount} / ${total}`}
-                sub={`${avgPct}% overall progress`}
-              />
               <Kpi
                 label="Enrolled area"
                 value={`${formatNumber(enrolledHa)} ha`}
@@ -211,39 +252,68 @@ export default async function CpReportPage({
               />
             </div>
 
-            {/* Allotment progress */}
+            {/* Pipeline progress — where growers are, stage by stage */}
+            <Section title="Pipeline progress — growers past each step">
+              {total === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No growers enrolled yet.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {stageProgress.map((st, i) => (
+                    <div key={st.label} className="flex items-center gap-3">
+                      <span className="w-28 shrink-0 text-xs text-muted-foreground">
+                        {i + 1}. {st.label}
+                      </span>
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className="h-full bg-primary"
+                          style={{ width: `${st.pct}%` }}
+                        />
+                      </div>
+                      <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                        {st.done}/{total}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            {/* Allotment progress — enrolled now, delivered fills in later */}
             <Section title="Allotment progress (hectares)">
               {allotments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No allotments set for this partner.
                 </p>
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {allotments.map((a) => (
                     <div key={a.id}>
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-medium">{a.label}</span>
                         <span className="tabular-nums text-muted-foreground">
-                          {formatNumber(a.loaded)} / {formatNumber(a.needed)} ha
-                          {" · "}
-                          <span
-                            className={
-                              a.balance < 0
-                                ? "text-success"
-                                : "text-foreground"
-                            }
-                          >
-                            {a.balance < 0 ? "+" : ""}
-                            {formatNumber(Math.abs(a.balance))}{" "}
-                            {a.balance < 0 ? "over" : "to go"}
-                          </span>
+                          Enrolled {formatNumber(a.enrolled)} /{" "}
+                          {formatNumber(a.needed)} ha ({a.enrolledPct}%)
+                          {a.toEnroll > 0 && (
+                            <> · {formatNumber(a.toEnroll)} to enroll</>
+                          )}
                         </span>
                       </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-secondary">
+                      {/* Track = target. Light fill = enrolled, solid = delivered. */}
+                      <div className="relative mt-1 h-2.5 w-full overflow-hidden rounded-full bg-secondary">
                         <div
-                          className="h-full bg-primary"
-                          style={{ width: `${Math.min(a.pct, 100)}%` }}
+                          className="absolute inset-y-0 left-0 bg-primary/30"
+                          style={{ width: `${Math.min(a.enrolledPct, 100)}%` }}
                         />
+                        <div
+                          className="absolute inset-y-0 left-0 bg-primary"
+                          style={{ width: `${Math.min(a.deliveredPct, 100)}%` }}
+                        />
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">
+                        Delivered {formatNumber(a.delivered)} ha (
+                        {a.deliveredPct}%) — fills in later in the season
                       </div>
                     </div>
                   ))}
