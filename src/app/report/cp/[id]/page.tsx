@@ -464,9 +464,9 @@ export default async function CpReportPage({
               Figures reflect program data as of {generated}.
             </p>
 
-            {/* ---- Page 2: per-grower detail ---- */}
+            {/* ---- Per-grower detail (flows sequentially; no forced page break) ---- */}
             {total > 0 && (
-              <div className="mt-10 break-before-page pt-2">
+              <div className="mt-8 pt-2">
                 <div className="mb-4 flex items-center justify-between border-b pb-3">
                   <div>
                     <div className="text-lg font-bold text-primary">
