@@ -2,8 +2,7 @@ import type {
   Country,
   Crop,
   DataStatus,
-  QaqcNpks,
-  QaqcFlags,
+  QaqcStatus,
   Evidencing,
   EccStatus,
   W8Type,
@@ -30,11 +29,11 @@ export type ClientSeasonRow = {
   enrolledHectares: number | null;
   enrolledAcres: number | null;
 
-  legalEntitySetup: boolean;
+  boundariesStatus: DataStatus;
   dataStatus: DataStatus;
+  legalEntitySetup: boolean;
   fieldRequested: boolean;
-  qaqcNpks: QaqcNpks;
-  qaqcFlags: QaqcFlags;
+  qaqc: QaqcStatus;
   fieldConfirmed: boolean;
   evidencing: Evidencing;
   ecc: EccStatus;
@@ -73,11 +72,11 @@ type PrismaClientSeason = {
   crops: Crop[];
   enrolledHectares: number | null;
   enrolledAcres: number | null;
-  legalEntitySetup: boolean;
+  boundariesStatus: DataStatus;
   dataStatus: DataStatus;
+  legalEntitySetup: boolean;
   fieldRequested: boolean;
-  qaqcNpks: QaqcNpks;
-  qaqcFlags: QaqcFlags;
+  qaqc: QaqcStatus;
   fieldConfirmed: boolean;
   evidencing: Evidencing;
   ecc: EccStatus;
@@ -129,11 +128,11 @@ export function toClientSeasonRow(cs: PrismaClientSeason): ClientSeasonRow {
     crops: cs.crops,
     enrolledHectares: cs.enrolledHectares,
     enrolledAcres: cs.enrolledAcres,
-    legalEntitySetup: cs.legalEntitySetup,
+    boundariesStatus: cs.boundariesStatus,
     dataStatus: cs.dataStatus,
+    legalEntitySetup: cs.legalEntitySetup,
     fieldRequested: cs.fieldRequested,
-    qaqcNpks: cs.qaqcNpks,
-    qaqcFlags: cs.qaqcFlags,
+    qaqc: cs.qaqc,
     fieldConfirmed: cs.fieldConfirmed,
     evidencing: cs.evidencing,
     ecc: cs.ecc,

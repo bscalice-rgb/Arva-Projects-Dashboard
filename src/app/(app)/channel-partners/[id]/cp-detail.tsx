@@ -71,6 +71,13 @@ type ClientLine = {
   paymentDone: boolean;
 };
 
+type PrevCompliance = {
+  seasonLabel: string;
+  agreementSigned: boolean;
+  w8Provided: boolean;
+  bankDetails: boolean;
+};
+
 export function CpDetail({
   cpId,
   cpName,
@@ -79,6 +86,7 @@ export function CpDetail({
   seasonId,
   seasonLabel,
   cpSeason,
+  prevCompliance,
   agg,
   payees,
   clients,
@@ -99,6 +107,7 @@ export function CpDetail({
     paymentDone: boolean;
     agreementComments: string | null;
   } | null;
+  prevCompliance: PrevCompliance | null;
   agg: VolumeAgg;
   payees: RevenueSharePayee[];
   clients: ClientLine[];
@@ -142,6 +151,7 @@ export function CpDetail({
         {/* Compliance */}
         <ComplianceCard
           cpSeason={cpSeason}
+          prevCompliance={prevCompliance}
           seasonLabel={seasonLabel}
           onSaved={() => router.refresh()}
         />
@@ -316,8 +326,27 @@ function Stat({
   );
 }
 
+/** "On file last season, not yet this season" reminder under a checkbox. */
+function PrevHint({
+  show,
+  seasonLabel,
+  what,
+}: {
+  show: boolean;
+  seasonLabel: string;
+  what: string;
+}) {
+  if (!show) return null;
+  return (
+    <p className="-mt-1 pl-6 text-xs text-amber-600 dark:text-amber-500">
+      {what} was on file for {seasonLabel} — collect it again for this season.
+    </p>
+  );
+}
+
 function ComplianceCard({
   cpSeason,
+  prevCompliance,
   seasonLabel,
   onSaved,
 }: {
@@ -329,6 +358,7 @@ function ComplianceCard({
     paymentDone: boolean;
     agreementComments: string | null;
   };
+  prevCompliance: PrevCompliance | null;
   seasonLabel: string;
   onSaved: () => void;
 }) {
@@ -353,15 +383,32 @@ function ComplianceCard({
           checked={form.agreementSigned}
           onChange={(v) => setForm((f) => ({ ...f, agreementSigned: v }))}
         />
+        <PrevHint
+          show={
+            !!prevCompliance?.agreementSigned && !form.agreementSigned
+          }
+          seasonLabel={prevCompliance?.seasonLabel ?? ""}
+          what="An agreement"
+        />
         <CheckboxField
           label="W-8 provided"
           checked={form.w8Provided}
           onChange={(v) => setForm((f) => ({ ...f, w8Provided: v }))}
         />
+        <PrevHint
+          show={!!prevCompliance?.w8Provided && !form.w8Provided}
+          seasonLabel={prevCompliance?.seasonLabel ?? ""}
+          what="A W-8"
+        />
         <CheckboxField
           label="Bank details"
           checked={form.bankDetails}
           onChange={(v) => setForm((f) => ({ ...f, bankDetails: v }))}
+        />
+        <PrevHint
+          show={!!prevCompliance?.bankDetails && !form.bankDetails}
+          seasonLabel={prevCompliance?.seasonLabel ?? ""}
+          what="Bank details"
         />
         <CheckboxField
           label="Payment done"

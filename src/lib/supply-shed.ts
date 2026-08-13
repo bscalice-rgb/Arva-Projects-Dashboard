@@ -2,6 +2,8 @@ import type { Country, Crop } from "@prisma/client";
 
 type ShedKeyish = {
   channelPartnerId: string | null;
+  /** Direct (no CP) allotments may pin a specific grower as the source. */
+  clientId: string | null;
   crop: Crop;
   country: Country;
   regionId: string | null;
@@ -12,6 +14,7 @@ type ClientSeasonForMatch = {
   deliveredAcres: number | null;
   deliveredHectares: number | null;
   client: {
+    id: string;
     country: Country;
     regionIds: string[];
     orgNode: { channelPartnerId: string | null };
@@ -23,6 +26,10 @@ export function matchesShed(
   shed: ShedKeyish,
   cs: ClientSeasonForMatch,
 ): boolean {
+  // A grower-pinned (direct) allotment loads only from that grower.
+  if (shed.clientId != null) {
+    return cs.client.id === shed.clientId && cs.crops.includes(shed.crop);
+  }
   const cpMatch =
     (shed.channelPartnerId ?? null) ===
     (cs.client.orgNode.channelPartnerId ?? null);
