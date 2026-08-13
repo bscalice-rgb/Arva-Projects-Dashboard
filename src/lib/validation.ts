@@ -116,6 +116,10 @@ export const clientSchema = z.object({
   defaultCrops: z.array(z.nativeEnum(Crop)).default([]),
   millId: optionalString,
   regionIds: z.array(z.string()).default([]),
+  // Optional enrolled area for the current season, written to the season record
+  // created alongside the grower (ignored on identity-only updates).
+  enrolledAcres: optionalNumber,
+  enrolledHectares: optionalNumber,
 });
 export type ClientInput = z.infer<typeof clientSchema>;
 

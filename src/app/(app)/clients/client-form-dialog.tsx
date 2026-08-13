@@ -15,6 +15,7 @@ import {
   TextField,
   SelectField,
   MultiSelectField,
+  LinkedAreaFields,
 } from "@/components/form-fields";
 import { CROP_OPTIONS, COUNTRY_OPTIONS, MILL_CROPS } from "@/lib/enums";
 import type { Country, Crop } from "@prisma/client";
@@ -47,6 +48,8 @@ function initialForm(editing?: ClientIdentity | null, lockedCp?: string | null) 
     defaultCrops: (editing?.defaultCrops ?? []) as string[],
     millId: editing?.millId ?? "",
     regionIds: (editing?.regionIds ?? []) as string[],
+    enrolledAcres: "",
+    enrolledHectares: "",
   };
 }
 
@@ -104,6 +107,8 @@ export function ClientFormDialog({
         defaultCrops: form.defaultCrops,
         millId: showMill ? form.millId || null : null,
         regionIds: form.regionIds,
+        enrolledAcres: form.enrolledAcres,
+        enrolledHectares: form.enrolledHectares,
       };
       const res = editing
         ? await updateClient(editing.id, payload)
@@ -111,8 +116,14 @@ export function ClientFormDialog({
       if (!res.ok) return setError(res.error);
       if (addAnother) {
         // Keep the shared context (CP, country, crops, regions, mill) so several
-        // growers can be entered quickly; clear only the per-grower identity.
-        setForm((f) => ({ ...f, name: "", legalEntity: "" }));
+        // growers can be entered quickly; clear the per-grower identity + area.
+        setForm((f) => ({
+          ...f,
+          name: "",
+          legalEntity: "",
+          enrolledAcres: "",
+          enrolledHectares: "",
+        }));
         setAddedCount((n) => n + 1);
         router.refresh();
       } else {
@@ -200,6 +211,15 @@ export function ClientFormDialog({
               options={mills
                 .filter((m) => form.defaultCrops.includes(m.crop))
                 .map((m) => ({ value: m.id, label: m.name }))}
+            />
+          )}
+          {!editing && (
+            <LinkedAreaFields
+              label="Enrolled area (optional)"
+              acres={form.enrolledAcres}
+              hectares={form.enrolledHectares}
+              onAcres={(v) => setForm((f) => ({ ...f, enrolledAcres: v }))}
+              onHectares={(v) => setForm((f) => ({ ...f, enrolledHectares: v }))}
             />
           )}
           {addedCount > 0 && !error && (

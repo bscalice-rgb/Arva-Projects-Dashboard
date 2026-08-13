@@ -47,7 +47,13 @@ export async function createClient(
     await prisma.clientSeason.upsert({
       where: { clientId_seasonId: { clientId: client.id, seasonId } },
       update: {},
-      create: { clientId: client.id, seasonId, crops: d.defaultCrops },
+      create: {
+        clientId: client.id,
+        seasonId,
+        crops: d.defaultCrops,
+        enrolledAcres: d.enrolledAcres,
+        enrolledHectares: d.enrolledHectares,
+      },
     });
   }
 
