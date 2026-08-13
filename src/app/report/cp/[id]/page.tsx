@@ -6,58 +6,63 @@ import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
 import type { PipelineInput } from "@/lib/pipeline";
 import { computeShedLoaded } from "@/lib/supply-shed";
-import { COUNTRY_LABELS, CROP_LABELS } from "@/lib/enums";
 import { formatNumber } from "@/lib/utils";
+import {
+  normalizeLang,
+  getReportDict,
+  REPORT_LANGS,
+} from "@/lib/report-i18n";
 import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
 
 // The progress checklist, grouped by category. One source of truth for the
 // page-1 progress bars, the "what we need next" list and the page-2 detail.
+// Labels are resolved per language via the report dictionary (keys here).
 type ReportItemCs = PipelineInput & { paymentDone: boolean };
-type ReportItem = { label: string; done: (cs: ReportItemCs) => boolean };
-type ReportCategory = { name: string; items: ReportItem[] };
+type ReportItem = { key: string; done: (cs: ReportItemCs) => boolean };
+type ReportCategory = { key: string; items: ReportItem[] };
 
 const REPORT_CATEGORIES: ReportCategory[] = [
   {
-    name: "Data & evidence",
+    key: "data",
     items: [
-      { label: "Boundaries", done: (cs) => cs.boundariesStatus === "DONE" },
-      { label: "Data", done: (cs) => cs.dataStatus === "DONE" },
-      { label: "QA/QC", done: (cs) => cs.qaqc === "DONE" },
-      { label: "Evidencing", done: (cs) => cs.evidencing === "ATTACHED" },
+      { key: "boundaries", done: (cs) => cs.boundariesStatus === "DONE" },
+      { key: "data", done: (cs) => cs.dataStatus === "DONE" },
+      { key: "qaqc", done: (cs) => cs.qaqc === "DONE" },
+      { key: "evidencing", done: (cs) => cs.evidencing === "ATTACHED" },
     ],
   },
   {
-    name: "Enrollment",
+    key: "enrollment",
     items: [
-      { label: "Legal entity", done: (cs) => cs.legalEntitySetup },
-      { label: "Field requested", done: (cs) => cs.fieldRequested },
-      { label: "Field confirmed", done: (cs) => cs.fieldConfirmed },
+      { key: "legalEntity", done: (cs) => cs.legalEntitySetup },
+      { key: "fieldRequested", done: (cs) => cs.fieldRequested },
+      { key: "fieldConfirmed", done: (cs) => cs.fieldConfirmed },
     ],
   },
   {
-    name: "Contract, bank & payment",
+    key: "contract",
     items: [
       {
-        label: "W-8",
+        key: "w8",
         done: (cs) =>
           cs.w8Type != null && cs.w8InCropForce && cs.w8MatchesLegalEntity,
       },
       {
-        label: "Contract",
+        key: "contract",
         done: (cs) =>
           cs.contractStatus === "SIGNED" && cs.contractApprovedInCropForce,
       },
-      { label: "Bank details", done: (cs) => cs.bankDetails },
-      { label: "Payment", done: (cs) => cs.paymentDone },
+      { key: "bank", done: (cs) => cs.bankDetails },
+      { key: "payment", done: (cs) => cs.paymentDone },
     ],
   },
 ];
 
 // Flat, ordered view (category order → item order) for "next step" logic.
 const FLAT_ITEMS = REPORT_CATEGORIES.flatMap((c) =>
-  c.items.map((it) => ({ ...it, category: c.name })),
+  c.items.map((it) => ({ ...it, categoryKey: c.key })),
 );
 const TOTAL_ITEMS = FLAT_ITEMS.length;
 
@@ -66,11 +71,14 @@ export default async function CpReportPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ season?: string }>;
+  searchParams: Promise<{ season?: string; lang?: string }>;
 }) {
   const { id } = await params;
-  const { season: seasonParam } = await searchParams;
+  const { season: seasonParam, lang: langParam } = await searchParams;
   const userId = getCurrentUserId();
+
+  const lang = normalizeLang(langParam);
+  const t = getReportDict(lang);
 
   const cp = await prisma.channelPartner.findFirst({ where: { id, userId } });
   if (!cp) notFound();
@@ -138,11 +146,11 @@ export default async function CpReportPage({
 
   // Page-1 progress bars, grouped by category (growers with each item done).
   const categoryProgress = REPORT_CATEGORIES.map((cat) => ({
-    name: cat.name,
+    name: t.categories[cat.key],
     items: cat.items.map((it) => {
       const done = clientSeasons.filter((cs) => it.done(cs)).length;
       return {
-        label: it.label,
+        label: t.items[it.key],
         done,
         pct: total > 0 ? Math.round((done / total) * 100) : 0,
       };
@@ -150,13 +158,20 @@ export default async function CpReportPage({
   }));
 
   // "What we need next": group growers by their first incomplete checklist item.
-  const nextCounts = new Map<number, { label: string; category: string; count: number }>();
+  const nextCounts = new Map<
+    number,
+    { label: string; category: string; count: number }
+  >();
   for (const cs of clientSeasons) {
     const idx = FLAT_ITEMS.findIndex((it) => !it.done(cs));
     if (idx === -1) continue; // fully complete
     const it = FLAT_ITEMS[idx];
     if (!nextCounts.has(idx))
-      nextCounts.set(idx, { label: it.label, category: it.category, count: 0 });
+      nextCounts.set(idx, {
+        label: t.items[it.key],
+        category: t.categories[it.categoryKey],
+        count: 0,
+      });
     nextCounts.get(idx)!.count += 1;
   }
   const nextStepRows = [...nextCounts.entries()]
@@ -165,9 +180,9 @@ export default async function CpReportPage({
 
   // CP's own outstanding compliance items.
   const cpTodos: string[] = [];
-  if (!cpSeason?.agreementSigned) cpTodos.push("Sign the CP agreement");
-  if (!cpSeason?.w8Provided) cpTodos.push("Provide the CP W-8");
-  if (!cpSeason?.bankDetails) cpTodos.push("Provide bank details");
+  if (!cpSeason?.agreementSigned) cpTodos.push(t.todoAgreement);
+  if (!cpSeason?.w8Provided) cpTodos.push(t.todoW8);
+  if (!cpSeason?.bankDetails) cpTodos.push(t.todoBank);
 
   // Allotment loaded roll-up.
   const csForMatch = clientSeasons.map((cs) => ({
@@ -199,7 +214,7 @@ export default async function CpReportPage({
     const toEnroll = needed - enrolled;
     return {
       id: s.id,
-      label: `${CROP_LABELS[s.crop]}${s.region ? ` · ${s.region.name}` : ""} · ${COUNTRY_LABELS[s.country]}`,
+      label: `${t.crop[s.crop]}${s.region ? ` · ${s.region.name}` : ""} · ${t.country[s.country]}`,
       needed,
       enrolled,
       delivered,
@@ -213,17 +228,20 @@ export default async function CpReportPage({
   const growerRows = clientSeasons.map((cs) => ({
     id: cs.id,
     name: cs.client.name,
-    crops: cs.crops.map((c) => CROP_LABELS[c]).join(", ") || "—",
+    crops: cs.crops.map((c) => t.crop[c]).join(", ") || "—",
     regions: cs.client.regions.map((r) => r.name).join(", ") || "—",
     enrolledHa: cs.enrolledHectares,
     categories: REPORT_CATEGORIES.map((cat) => ({
-      name: cat.name,
-      items: cat.items.map((it) => ({ label: it.label, done: it.done(cs) })),
+      name: t.categories[cat.key],
+      items: cat.items.map((it) => ({
+        label: t.items[it.key],
+        done: it.done(cs),
+      })),
     })),
     doneCount: FLAT_ITEMS.filter((it) => it.done(cs)).length,
   }));
 
-  const generated = new Date().toLocaleDateString("en-US", {
+  const generated = new Date().toLocaleDateString(t.locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -232,17 +250,37 @@ export default async function CpReportPage({
   const nothingOutstanding =
     nextStepRows.length === 0 && cpTodos.length === 0 && total > 0;
 
+  const baseHref = `/report/cp/${id}?season=${season?.id ?? ""}`;
+
   return (
     <div className="min-h-screen bg-muted/40 py-6">
       {/* Toolbar (not printed) */}
-      <div className="no-print mx-auto mb-4 flex max-w-[800px] items-center justify-between px-4">
+      <div className="no-print mx-auto mb-4 flex max-w-[800px] flex-wrap items-center justify-between gap-3 px-4">
         <Link
           href={`/channel-partners/${id}`}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to {cp.entityName}
+          <ArrowLeft className="h-4 w-4" /> {t.backTo(cp.entityName)}
         </Link>
-        <PrintButton />
+        <div className="flex items-center gap-3">
+          <div className="inline-flex items-center rounded-md border p-0.5">
+            {REPORT_LANGS.map((l) => (
+              <Link
+                key={l.code}
+                href={`${baseHref}&lang=${l.code}`}
+                title={l.label}
+                className={`rounded px-2.5 py-1 text-xs font-medium ${
+                  l.code === lang
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                {l.short}
+              </Link>
+            ))}
+          </div>
+          <PrintButton label={t.savePdf} />
+        </div>
       </div>
 
       {/* The printable page */}
@@ -257,32 +295,32 @@ export default async function CpReportPage({
               className="h-9 w-auto"
             />
             <div className="mt-2 text-sm text-muted-foreground">
-              Scope-3 Program — Partner Progress Report
+              {t.subtitle}
             </div>
           </div>
           <div className="text-right text-sm">
             <div className="font-semibold">{cp.entityName}</div>
             <div className="text-muted-foreground">
-              {season ? season.label : "No season"}
+              {season ? season.label : ""}
             </div>
-            <div className="text-muted-foreground">as of {generated}</div>
+            <div className="text-muted-foreground">
+              {t.asOf} {generated}
+            </div>
           </div>
         </div>
 
         {!season ? (
-          <p className="mt-6 text-sm text-muted-foreground">
-            No program year is set up yet.
-          </p>
+          <p className="mt-6 text-sm text-muted-foreground">{t.noSeason}</p>
         ) : (
           <>
             {/* Overall progress banner */}
             <div className="mt-5 rounded-lg border bg-secondary/40 p-4">
               <div className="flex items-baseline justify-between">
                 <span className="text-sm font-semibold">
-                  Overall pipeline progress
+                  {t.overallTitle}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {completeCount} of {total} growers complete
+                  {t.growersComplete(completeCount, total)}
                 </span>
               </div>
               <div className="mt-2 flex items-center gap-3">
@@ -300,22 +338,22 @@ export default async function CpReportPage({
 
             {/* KPIs */}
             <div className="mt-4 grid grid-cols-3 gap-3">
-              <Kpi label="Growers enrolled" value={formatNumber(total)} />
+              <Kpi label={t.kpiGrowers} value={formatNumber(total)} />
               <Kpi
-                label="Enrolled area"
+                label={t.kpiEnrolled}
                 value={`${formatNumber(enrolledHa)} ha`}
               />
               <Kpi
-                label="Delivered area"
+                label={t.kpiDelivered}
                 value={`${formatNumber(deliveredHa)} ha`}
               />
             </div>
 
             {/* Pipeline progress — grouped by category */}
-            <Section title="Pipeline progress — growers with each step done">
+            <Section title={t.secPipeline}>
               {total === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No growers enrolled yet.
+                  {t.noGrowersYet}
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -352,10 +390,10 @@ export default async function CpReportPage({
             </Section>
 
             {/* Allotment progress — enrolled now, delivered fills in later */}
-            <Section title="Allotment progress (hectares)">
+            <Section title={t.secAllotment}>
               {allotments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No allotments set for this partner.
+                  {t.noAllotments}
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -364,10 +402,13 @@ export default async function CpReportPage({
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-medium">{a.label}</span>
                         <span className="tabular-nums text-muted-foreground">
-                          Enrolled {formatNumber(a.enrolled)} /{" "}
-                          {formatNumber(a.needed)} ha ({a.enrolledPct}%)
+                          {t.enrolledLabel(
+                            formatNumber(a.enrolled),
+                            formatNumber(a.needed),
+                            a.enrolledPct,
+                          )}
                           {a.toEnroll > 0 && (
-                            <> · {formatNumber(a.toEnroll)} to enroll</>
+                            <> · {t.toEnroll(formatNumber(a.toEnroll))}</>
                           )}
                         </span>
                       </div>
@@ -383,8 +424,10 @@ export default async function CpReportPage({
                         />
                       </div>
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        Delivered {formatNumber(a.delivered)} ha (
-                        {a.deliveredPct}%) — fills in later in the season
+                        {t.deliveredNote(
+                          formatNumber(a.delivered),
+                          a.deliveredPct,
+                        )}
                       </div>
                     </div>
                   ))}
@@ -393,21 +436,21 @@ export default async function CpReportPage({
             </Section>
 
             {/* What we need next */}
-            <Section title="What we need next — focus here">
+            <Section title={t.secNext}>
               {total === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No growers enrolled for this partner yet.
+                  {t.noGrowersPartner}
                 </p>
               ) : nothingOutstanding ? (
                 <p className="text-sm font-medium text-success">
-                  All growers are complete — nothing outstanding. 🎉
+                  {t.allComplete}
                 </p>
               ) : (
                 <div className="space-y-3">
                   {nextStepRows.length > 0 && (
                     <div>
                       <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Grower next steps
+                        {t.growerNextSteps}
                       </div>
                       <ul className="space-y-1.5">
                         {nextStepRows.map((r) => (
@@ -419,12 +462,7 @@ export default async function CpReportPage({
                               {r.count}
                             </span>
                             <span>
-                              grower{r.count === 1 ? "" : "s"} — next:{" "}
-                              <span className="font-medium">{r.label}</span>
-                              <span className="text-muted-foreground">
-                                {" "}
-                                ({r.category})
-                              </span>
+                              {t.growersNext(r.count, r.label, r.category)}
                             </span>
                           </li>
                         ))}
@@ -434,13 +472,13 @@ export default async function CpReportPage({
                   {cpTodos.length > 0 && (
                     <div>
                       <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Partner to-dos
+                        {t.partnerTodos}
                       </div>
                       <ul className="space-y-1 text-sm">
-                        {cpTodos.map((t) => (
-                          <li key={t} className="flex items-center gap-2">
+                        {cpTodos.map((todo) => (
+                          <li key={todo} className="flex items-center gap-2">
                             <X className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                            {t}
+                            {todo}
                           </li>
                         ))}
                       </ul>
@@ -453,15 +491,20 @@ export default async function CpReportPage({
             {/* Footer: compliance + confidentiality */}
             <div className="mt-6 flex flex-wrap items-center gap-3 border-t pt-4 text-xs">
               <span className="font-semibold text-muted-foreground">
-                Partner compliance:
+                {t.compliance}
               </span>
-              <ComplianceChip label="Agreement" ok={!!cpSeason?.agreementSigned} />
-              <ComplianceChip label="W-8" ok={!!cpSeason?.w8Provided} />
-              <ComplianceChip label="Bank details" ok={!!cpSeason?.bankDetails} />
+              <ComplianceChip
+                label={t.agreement}
+                ok={!!cpSeason?.agreementSigned}
+              />
+              <ComplianceChip label={t.w8} ok={!!cpSeason?.w8Provided} />
+              <ComplianceChip
+                label={t.bankDetails}
+                ok={!!cpSeason?.bankDetails}
+              />
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Confidential — prepared by Arva Intelligence for {cp.entityName}.
-              Figures reflect program data as of {generated}.
+              {t.confidential(cp.entityName, generated)}
             </p>
 
             {/* ---- Per-grower detail (flows sequentially; no forced page break) ---- */}
@@ -470,14 +513,14 @@ export default async function CpReportPage({
                 <div className="mb-4 flex items-center justify-between border-b pb-3">
                   <div>
                     <div className="text-lg font-bold text-primary">
-                      Grower detail
+                      {t.growerDetail}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {cp.entityName} · {season.label}
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Green = done · grey = pending
+                    {t.legend}
                   </div>
                 </div>
 
@@ -490,14 +533,14 @@ export default async function CpReportPage({
                       <div className="flex items-baseline justify-between gap-3">
                         <span className="font-semibold">{g.name}</span>
                         <span className="text-xs tabular-nums text-muted-foreground">
-                          {g.doneCount}/{TOTAL_ITEMS} steps done
+                          {t.stepsDone(g.doneCount, TOTAL_ITEMS)}
                         </span>
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">
                         {g.crops} · {g.regions} ·{" "}
                         {g.enrolledHa != null
-                          ? `${formatNumber(g.enrolledHa)} ha enrolled`
-                          : "area TBD"}
+                          ? t.haEnrolled(formatNumber(g.enrolledHa))
+                          : t.areaTbd}
                       </div>
                       <div className="mt-2 grid grid-cols-3 gap-3">
                         {g.categories.map((cat) => (

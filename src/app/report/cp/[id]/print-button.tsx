@@ -3,10 +3,10 @@
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function PrintButton() {
+export function PrintButton({ label = "Save as PDF" }: { label?: string }) {
   return (
     <Button onClick={() => window.print()}>
-      <Printer className="h-4 w-4" /> Save as PDF
+      <Printer className="h-4 w-4" /> {label}
     </Button>
   );
 }
