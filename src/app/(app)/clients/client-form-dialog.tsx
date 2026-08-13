@@ -72,6 +72,7 @@ export function ClientFormDialog({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [addedCount, setAddedCount] = useState(0);
   const [form, setForm] = useState(() =>
     initialForm(editing, lockedChannelPartnerId),
   );
@@ -81,6 +82,7 @@ export function ClientFormDialog({
   if (key !== lastKey) {
     setLastKey(key);
     setError(null);
+    setAddedCount(0);
     setForm(initialForm(editing, lockedChannelPartnerId));
   }
 
@@ -91,7 +93,7 @@ export function ClientFormDialog({
     .filter((r) => r.country === form.country)
     .map((r) => ({ value: r.id, label: r.name }));
 
-  function submit() {
+  function submit(addAnother = false) {
     setError(null);
     startTransition(async () => {
       const payload = {
@@ -107,8 +109,16 @@ export function ClientFormDialog({
         ? await updateClient(editing.id, payload)
         : await createClient(payload, seasonId ?? undefined);
       if (!res.ok) return setError(res.error);
-      onOpenChange(false);
-      router.refresh();
+      if (addAnother) {
+        // Keep the shared context (CP, country, crops, regions, mill) so several
+        // growers can be entered quickly; clear only the per-grower identity.
+        setForm((f) => ({ ...f, name: "", legalEntity: "" }));
+        setAddedCount((n) => n + 1);
+        router.refresh();
+      } else {
+        onOpenChange(false);
+        router.refresh();
+      }
     });
   }
 
@@ -192,13 +202,28 @@ export function ClientFormDialog({
                 .map((m) => ({ value: m.id, label: m.name }))}
             />
           )}
+          {addedCount > 0 && !error && (
+            <p className="text-sm text-success">
+              {addedCount} grower{addedCount === 1 ? "" : "s"} added — keep going
+              or close.
+            </p>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {addedCount > 0 ? "Done" : "Cancel"}
           </Button>
-          <Button onClick={submit} disabled={pending}>
+          {!editing && (
+            <Button
+              variant="secondary"
+              onClick={() => submit(true)}
+              disabled={pending}
+            >
+              {pending ? "Saving…" : "Save & add another"}
+            </Button>
+          )}
+          <Button onClick={() => submit(false)} disabled={pending}>
             {pending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
