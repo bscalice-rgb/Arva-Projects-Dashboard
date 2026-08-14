@@ -5,6 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
 import type { PipelineInput } from "@/lib/pipeline";
+import {
+  PRACTICES,
+  deriveDataStatus,
+  getPracticeProgress,
+  pendingPractices,
+  type PracticeInput,
+} from "@/lib/practices";
 import { computeShedLoaded, deriveAreaUnits } from "@/lib/supply-shed";
 import { formatNumber } from "@/lib/utils";
 import {
@@ -19,7 +26,7 @@ export const dynamic = "force-dynamic";
 // The progress checklist, grouped by category. One source of truth for the
 // page-1 progress bars, the "what we need next" list and the page-2 detail.
 // Labels are resolved per language via the report dictionary (keys here).
-type ReportItemCs = PipelineInput & { paymentDone: boolean };
+type ReportItemCs = PipelineInput & PracticeInput & { paymentDone: boolean };
 type ReportItem = { key: string; done: (cs: ReportItemCs) => boolean };
 type ReportCategory = { key: string; items: ReportItem[] };
 
@@ -28,7 +35,9 @@ const REPORT_CATEGORIES: ReportCategory[] = [
     key: "data",
     items: [
       { key: "boundaries", done: (cs) => cs.boundariesStatus === "DONE" },
-      { key: "data", done: (cs) => cs.dataStatus === "DONE" },
+      // Derived from the practices at read time (detailed in its own section)
+      // rather than trusting the stored rollup, so the report can't go stale.
+      { key: "data", done: (cs) => deriveDataStatus(cs) === "DONE" },
       { key: "qaqc", done: (cs) => cs.qaqc === "DONE" },
       { key: "evidencing", done: (cs) => cs.evidencing === "ATTACHED" },
     ],
@@ -166,6 +175,27 @@ export default async function CpReportPage({
     }),
   }));
 
+  // Data milestones: per-practice progress across growers. The denominator is
+  // the growers the practice applies to (N/A ones are excluded, not counted
+  // as pending), so a practice nobody uses reads as "n/a" rather than 0%.
+  const practiceProgress = PRACTICES.map((p) => {
+    const applicable = clientSeasons.filter((cs) => cs[p.key] !== "N_A");
+    const done = applicable.filter((cs) => cs[p.key] === "DONE").length;
+    return {
+      key: p.key,
+      label: t.practices[p.key],
+      done,
+      applicable: applicable.length,
+      pct:
+        applicable.length > 0
+          ? Math.round((done / applicable.length) * 100)
+          : 0,
+    };
+  });
+  const practicesAllDone =
+    total > 0 &&
+    practiceProgress.every((p) => p.applicable === 0 || p.done === p.applicable);
+
   // "What we need next": group growers by their first incomplete checklist item.
   const nextCounts = new Map<
     number,
@@ -227,6 +257,8 @@ export default async function CpReportPage({
     crops: cs.crops.map((c) => t.crop[c]).join(", ") || "—",
     regions: cs.client.regions.map((r) => r.name).join(", ") || "—",
     enrolledHa: cs.enrolledHectares,
+    practiceCount: getPracticeProgress(cs),
+    pendingPractices: pendingPractices(cs).map((p) => t.practices[p.key]),
     categories: REPORT_CATEGORIES.map((cat) => ({
       name: t.categories[cat.key],
       items: cat.items.map((it) => ({
@@ -384,6 +416,39 @@ export default async function CpReportPage({
                 </div>
               )}
             </Section>
+
+            {/* Data milestones — the management practices behind the Data step */}
+            {total > 0 && (
+              <Section title={t.secPractices}>
+                {practicesAllDone ? (
+                  <p className="text-sm font-medium text-success">
+                    {t.practicesAllDone}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                    {practiceProgress.map((p) => (
+                      <div key={p.key} className="flex items-center gap-2">
+                        {/* Wide enough for the longest translated label. */}
+                        <span className="w-32 shrink-0 text-xs leading-tight text-muted-foreground">
+                          {p.label}
+                        </span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full bg-primary"
+                            style={{ width: `${p.pct}%` }}
+                          />
+                        </div>
+                        <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                          {p.applicable === 0
+                            ? t.practiceNa
+                            : `${p.done}/${p.applicable}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            )}
 
             {/* Allotment progress — enrolled now, delivered fills in later */}
             <Section title={t.secAllotment}>
@@ -556,6 +621,14 @@ export default async function CpReportPage({
                           </div>
                         ))}
                       </div>
+                      {g.pendingPractices.length > 0 && (
+                        <div className="mt-2 border-t pt-1.5 text-[11px] text-muted-foreground">
+                          <span className="tabular-nums">
+                            {g.practiceCount.done}/{g.practiceCount.applicable}
+                          </span>{" "}
+                          · {t.pendingData(g.pendingPractices.join(", "))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -54,8 +54,13 @@ export type ReportDict = {
   areaTbd: string;
   savePdf: string;
   backTo: (cp: string) => string;
+  secPractices: string;
+  practiceNa: string;
+  practicesAllDone: string;
+  pendingData: (list: string) => string;
   categories: Record<string, string>;
   items: Record<string, string>;
+  practices: Record<string, string>;
   crop: Record<Crop, string>;
   country: Record<Country, string>;
 };
@@ -234,6 +239,46 @@ const ITEM_I18N: Record<ReportLang, Record<string, string>> = {
   },
 };
 
+// Management-practice labels (keys match src/lib/practices.ts PracticeKey).
+const PRACTICE_I18N: Record<ReportLang, Record<string, string>> = {
+  en: {
+    practicePlanting: "Planting",
+    practiceHarvest: "Harvest",
+    practiceTillage: "Tillage",
+    practiceFertilizer: "Fertilizer",
+    practiceLiming: "Liming",
+    practiceCropProtection: "Crop protection",
+    practiceIrrigation: "Irrigation",
+    practiceCoverCropping: "Cover cropping",
+    practiceSoilSampling: "Soil sampling",
+    practiceAggregation: "Aggregation",
+  },
+  pt: {
+    practicePlanting: "Plantio",
+    practiceHarvest: "Colheita",
+    practiceTillage: "Preparo do solo",
+    practiceFertilizer: "Fertilizantes",
+    practiceLiming: "Calagem",
+    practiceCropProtection: "Defensivos",
+    practiceIrrigation: "Irrigação",
+    practiceCoverCropping: "Plantas de cobertura",
+    practiceSoilSampling: "Amostragem de solo",
+    practiceAggregation: "Agregação",
+  },
+  es: {
+    practicePlanting: "Siembra",
+    practiceHarvest: "Cosecha",
+    practiceTillage: "Labranza",
+    practiceFertilizer: "Fertilizantes",
+    practiceLiming: "Encalado",
+    practiceCropProtection: "Protección de cultivos",
+    practiceIrrigation: "Riego",
+    practiceCoverCropping: "Cultivos de cobertura",
+    practiceSoilSampling: "Muestreo de suelo",
+    practiceAggregation: "Agregación",
+  },
+};
+
 const DICTS: Record<ReportLang, ReportDict> = {
   en: {
     locale: "en-US",
@@ -276,8 +321,13 @@ const DICTS: Record<ReportLang, ReportDict> = {
     areaTbd: "area TBD",
     savePdf: "Save as PDF",
     backTo: (cp) => `Back to ${cp}`,
+    secPractices: "Data milestones — management practices confirmed",
+    practiceNa: "n/a",
+    practicesAllDone: "All data milestones confirmed.",
+    pendingData: (list) => `Data pending: ${list}`,
     categories: CATEGORY_I18N.en,
     items: ITEM_I18N.en,
+    practices: PRACTICE_I18N.en,
     crop: CROP_I18N.en,
     country: COUNTRY_I18N.en,
   },
@@ -322,8 +372,13 @@ const DICTS: Record<ReportLang, ReportDict> = {
     areaTbd: "área a definir",
     savePdf: "Salvar como PDF",
     backTo: (cp) => `Voltar para ${cp}`,
+    secPractices: "Marcos de dados — práticas de manejo confirmadas",
+    practiceNa: "n/a",
+    practicesAllDone: "Todos os marcos de dados confirmados.",
+    pendingData: (list) => `Dados pendentes: ${list}`,
     categories: CATEGORY_I18N.pt,
     items: ITEM_I18N.pt,
+    practices: PRACTICE_I18N.pt,
     crop: CROP_I18N.pt,
     country: COUNTRY_I18N.pt,
   },
@@ -368,8 +423,13 @@ const DICTS: Record<ReportLang, ReportDict> = {
     areaTbd: "área por definir",
     savePdf: "Guardar como PDF",
     backTo: (cp) => `Volver a ${cp}`,
+    secPractices: "Hitos de datos — prácticas de manejo confirmadas",
+    practiceNa: "n/d",
+    practicesAllDone: "Todos los hitos de datos confirmados.",
+    pendingData: (list) => `Datos pendientes: ${list}`,
     categories: CATEGORY_I18N.es,
     items: ITEM_I18N.es,
+    practices: PRACTICE_I18N.es,
     crop: CROP_I18N.es,
     country: COUNTRY_I18N.es,
   },
