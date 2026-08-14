@@ -8,6 +8,7 @@ import {
   Crop,
   DataStatus,
   QaqcStatus,
+  PracticeStatus,
   Evidencing,
   EccStatus,
   W8Type,
@@ -83,6 +84,13 @@ export const QAQC_STATUS_LABELS: Record<QaqcStatus, string> = {
   DONE: "Done",
 };
 
+export const PRACTICE_STATUS_LABELS: Record<PracticeStatus, string> = {
+  NOT_STARTED: "Not started",
+  IN_PROGRESS: "In progress",
+  DONE: "Done",
+  N_A: "N/A",
+};
+
 export const EVIDENCING_LABELS: Record<Evidencing, string> = {
   NOT_ATTACHED: "Not attached",
   ATTACHED: "Attached",
@@ -122,6 +130,7 @@ export const COUNTRY_OPTIONS = opts(COUNTRY_LABELS);
 export const CROP_OPTIONS = opts(CROP_LABELS);
 export const DATA_STATUS_OPTIONS = opts(DATA_STATUS_LABELS);
 export const QAQC_STATUS_OPTIONS = opts(QAQC_STATUS_LABELS);
+export const PRACTICE_STATUS_OPTIONS = opts(PRACTICE_STATUS_LABELS);
 export const EVIDENCING_OPTIONS = opts(EVIDENCING_LABELS);
 export const ECC_STATUS_OPTIONS = opts(ECC_STATUS_LABELS);
 export const W8_TYPE_OPTIONS = opts(W8_TYPE_LABELS);

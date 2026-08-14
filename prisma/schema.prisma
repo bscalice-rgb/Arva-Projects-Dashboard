@@ -70,6 +70,15 @@ enum QaqcStatus {
   DONE
 }
 
+// Per management-practice data milestone. N_A marks a practice that doesn't
+// apply to this grower/season, so it never blocks the Data step.
+enum PracticeStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+  N_A
+}
+
 enum Evidencing {
   NOT_ATTACHED
   ATTACHED
@@ -333,6 +342,8 @@ model ClientSeason {
 
   // ---- Execution pipeline flags (order lives in src/lib/pipeline.ts) ----
   boundariesStatus            DataStatus     @default(NOT_STARTED)
+  // Derived rollup of the management-practice milestones below: DONE once every
+  // applicable practice is DONE. Recomputed server-side on save.
   dataStatus                  DataStatus     @default(NOT_STARTED)
   legalEntitySetup            Boolean        @default(false)
   fieldRequested              Boolean        @default(false)
@@ -347,6 +358,18 @@ model ClientSeason {
   contractStatus              ContractStatus @default(NOT_SENT)
   contractApprovedInCropForce Boolean        @default(false)
   bankDetails                 Boolean        @default(false)
+
+  // ---- Data milestones: management practices (order in src/lib/practices.ts) ----
+  practicePlanting           PracticeStatus @default(NOT_STARTED)
+  practiceHarvest            PracticeStatus @default(NOT_STARTED)
+  practiceTillage            PracticeStatus @default(NOT_STARTED)
+  practiceFertilizer         PracticeStatus @default(NOT_STARTED)
+  practiceLiming             PracticeStatus @default(NOT_STARTED)
+  practiceCropProtection     PracticeStatus @default(NOT_STARTED)
+  practiceIrrigation         PracticeStatus @default(NOT_STARTED)
+  practiceCoverCropping      PracticeStatus @default(NOT_STARTED)
+  practiceSoilSampling       PracticeStatus @default(NOT_STARTED)
+  practiceAggregation        PracticeStatus @default(NOT_STARTED)
 
   // ---- Outcomes ----
   fields            Int?

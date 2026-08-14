@@ -14,6 +14,11 @@ import {
   clientSeasonAreasSchema,
 } from "@/lib/validation";
 import { zodMessage, type ActionResult } from "@/lib/action-result";
+import {
+  deriveDataStatus,
+  PRACTICE_KEYS,
+  type PracticeKey,
+} from "@/lib/practices";
 
 /** Recompute a client-season's enrolled/delivered totals from its per-state
  *  area rows (total = sum of states). Called after area edits. */
@@ -243,7 +248,11 @@ export async function saveClientSeason(
     delete (data as Record<string, unknown>).deliveredHectares;
   }
 
-  const cs = await prisma.clientSeason.update({ where: { id }, data });
+  // Data step is a rollup of the management practices, never set by hand.
+  const cs = await prisma.clientSeason.update({
+    where: { id },
+    data: { ...data, dataStatus: deriveDataStatus(data) },
+  });
   revalidatePath("/clients");
   revalidatePath(`/clients/${cs.clientId}`);
   revalidatePath("/allotments");
@@ -258,9 +267,25 @@ export async function patchClientSeason(
 ): Promise<ActionResult> {
   const parsed = clientSeasonPatchSchema.safeParse(patch);
   if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
+  const data: Record<string, unknown> = { ...parsed.data };
+
+  // A patch may touch only some practices — re-derive from the merged record.
+  if (PRACTICE_KEYS.some((k) => k in data)) {
+    const current = await prisma.clientSeason.findUnique({
+      where: { id },
+      select: Object.fromEntries(PRACTICE_KEYS.map((k) => [k, true])) as Record<
+        PracticeKey,
+        true
+      >,
+    });
+    if (current) {
+      data.dataStatus = deriveDataStatus({ ...current, ...parsed.data });
+    }
+  }
+
   const cs = await prisma.clientSeason.update({
     where: { id },
-    data: parsed.data,
+    data,
   });
   revalidatePath("/clients");
   revalidatePath(`/clients/${cs.clientId}`);

@@ -2,6 +2,7 @@ import type {
   Country,
   Crop,
   DataStatus,
+  PracticeStatus,
   QaqcStatus,
   Evidencing,
   EccStatus,
@@ -31,6 +32,16 @@ export type ClientSeasonRow = {
 
   boundariesStatus: DataStatus;
   dataStatus: DataStatus;
+  practicePlanting: PracticeStatus;
+  practiceHarvest: PracticeStatus;
+  practiceTillage: PracticeStatus;
+  practiceFertilizer: PracticeStatus;
+  practiceLiming: PracticeStatus;
+  practiceCropProtection: PracticeStatus;
+  practiceIrrigation: PracticeStatus;
+  practiceCoverCropping: PracticeStatus;
+  practiceSoilSampling: PracticeStatus;
+  practiceAggregation: PracticeStatus;
   legalEntitySetup: boolean;
   fieldRequested: boolean;
   qaqc: QaqcStatus;
@@ -74,6 +85,16 @@ type PrismaClientSeason = {
   enrolledAcres: number | null;
   boundariesStatus: DataStatus;
   dataStatus: DataStatus;
+  practicePlanting: PracticeStatus;
+  practiceHarvest: PracticeStatus;
+  practiceTillage: PracticeStatus;
+  practiceFertilizer: PracticeStatus;
+  practiceLiming: PracticeStatus;
+  practiceCropProtection: PracticeStatus;
+  practiceIrrigation: PracticeStatus;
+  practiceCoverCropping: PracticeStatus;
+  practiceSoilSampling: PracticeStatus;
+  practiceAggregation: PracticeStatus;
   legalEntitySetup: boolean;
   fieldRequested: boolean;
   qaqc: QaqcStatus;
@@ -130,6 +151,16 @@ export function toClientSeasonRow(cs: PrismaClientSeason): ClientSeasonRow {
     enrolledAcres: cs.enrolledAcres,
     boundariesStatus: cs.boundariesStatus,
     dataStatus: cs.dataStatus,
+    practicePlanting: cs.practicePlanting,
+    practiceHarvest: cs.practiceHarvest,
+    practiceTillage: cs.practiceTillage,
+    practiceFertilizer: cs.practiceFertilizer,
+    practiceLiming: cs.practiceLiming,
+    practiceCropProtection: cs.practiceCropProtection,
+    practiceIrrigation: cs.practiceIrrigation,
+    practiceCoverCropping: cs.practiceCoverCropping,
+    practiceSoilSampling: cs.practiceSoilSampling,
+    practiceAggregation: cs.practiceAggregation,
     legalEntitySetup: cs.legalEntitySetup,
     fieldRequested: cs.fieldRequested,
     qaqc: cs.qaqc,

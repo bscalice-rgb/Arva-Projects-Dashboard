@@ -40,6 +40,7 @@ import {
 import {
   CROP_OPTIONS,
   DATA_STATUS_OPTIONS,
+  PRACTICE_STATUS_OPTIONS,
   QAQC_STATUS_OPTIONS,
   EVIDENCING_OPTIONS,
   ECC_STATUS_OPTIONS,
@@ -48,6 +49,11 @@ import {
   ORG_NODE_KIND_LABELS,
 } from "@/lib/enums";
 import { PIPELINE_STAGES, getPipelineStatus } from "@/lib/pipeline";
+import {
+  PRACTICES,
+  getPracticeProgress,
+  deriveDataStatus,
+} from "@/lib/practices";
 import { cn } from "@/lib/utils";
 import { saveClientSeason, addClientToSeason, deleteClient } from "../actions";
 import { AreaByState } from "./area-by-state";
@@ -69,7 +75,16 @@ function toForm(r: ClientSeasonRow) {
     enrolledHectares: n(r.enrolledHectares),
     enrolledAcres: n(r.enrolledAcres),
     boundariesStatus: r.boundariesStatus,
-    dataStatus: r.dataStatus,
+    practicePlanting: r.practicePlanting,
+    practiceHarvest: r.practiceHarvest,
+    practiceTillage: r.practiceTillage,
+    practiceFertilizer: r.practiceFertilizer,
+    practiceLiming: r.practiceLiming,
+    practiceCropProtection: r.practiceCropProtection,
+    practiceIrrigation: r.practiceIrrigation,
+    practiceCoverCropping: r.practiceCoverCropping,
+    practiceSoilSampling: r.practiceSoilSampling,
+    practiceAggregation: r.practiceAggregation,
     legalEntitySetup: r.legalEntitySetup,
     fieldRequested: r.fieldRequested,
     qaqc: r.qaqc,
@@ -191,7 +206,16 @@ export function ClientDetail({
         enrolledHectares: form.enrolledHectares,
         enrolledAcres: form.enrolledAcres,
         boundariesStatus: form.boundariesStatus,
-        dataStatus: form.dataStatus,
+        practicePlanting: form.practicePlanting,
+        practiceHarvest: form.practiceHarvest,
+        practiceTillage: form.practiceTillage,
+        practiceFertilizer: form.practiceFertilizer,
+        practiceLiming: form.practiceLiming,
+        practiceCropProtection: form.practiceCropProtection,
+        practiceIrrigation: form.practiceIrrigation,
+        practiceCoverCropping: form.practiceCoverCropping,
+        practiceSoilSampling: form.practiceSoilSampling,
+        practiceAggregation: form.practiceAggregation,
         legalEntitySetup: form.legalEntitySetup,
         fieldRequested: form.fieldRequested,
         qaqc: form.qaqc,
@@ -225,7 +249,7 @@ export function ClientDetail({
   const status = form
     ? getPipelineStatus({
         boundariesStatus: form.boundariesStatus,
-        dataStatus: form.dataStatus,
+        dataStatus: deriveDataStatus(form),
         legalEntitySetup: form.legalEntitySetup,
         fieldRequested: form.fieldRequested,
         qaqc: form.qaqc,
@@ -502,14 +526,7 @@ function PipelineStepper({
           />
         );
       case "dataUpload":
-        return (
-          <SelectField
-            label="Data upload"
-            value={form.dataStatus}
-            onChange={(v) => set("dataStatus", v as never)}
-            options={DATA_STATUS_OPTIONS}
-          />
-        );
+        return <PracticesEditor form={form} set={set} />;
       case "legalEntitySetup":
         return (
           <CheckboxField
@@ -702,6 +719,65 @@ function PipelineStepper({
         );
       })}
     </ol>
+  );
+}
+
+/**
+ * Data milestones: one row per management practice. The Data pipeline step is
+ * complete when every applicable (non-N/A) practice is Done, so this editor
+ * shows the running count as you go.
+ */
+function PracticesEditor({
+  form,
+  set,
+}: {
+  form: FormState;
+  set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+}) {
+  const progress = getPracticeProgress(form);
+  const complete = progress.done === progress.applicable;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Update and confirm management practices. Mark anything that doesn’t
+          apply as N/A — it won’t block the Data step.
+        </p>
+        <Badge variant={complete ? "success" : "muted"}>
+          {progress.done}/{progress.applicable} done
+        </Badge>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {PRACTICES.map((p) => (
+          <div
+            key={p.key}
+            className={cn(
+              "flex items-center justify-between gap-2 rounded-md border px-3 py-1.5",
+              form[p.key] === "DONE" && "border-success/40 bg-success/5",
+              form[p.key] === "N_A" && "opacity-60",
+            )}
+          >
+            <span className="text-sm">{p.label}</span>
+            <Select
+              value={form[p.key]}
+              onValueChange={(v) => set(p.key, v as never)}
+            >
+              <SelectTrigger className="h-8 w-[130px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRACTICE_STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

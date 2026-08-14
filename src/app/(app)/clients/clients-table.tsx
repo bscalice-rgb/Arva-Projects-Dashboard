@@ -45,6 +45,7 @@ import {
   CONTRACT_STATUS_OPTIONS,
 } from "@/lib/enums";
 import { getPipelineStatus, PIPELINE_STAGES } from "@/lib/pipeline";
+import { getPracticeProgress, pendingPractices, PRACTICES } from "@/lib/practices";
 import type { Country } from "@prisma/client";
 import { formatNumber, formatUsd } from "@/lib/utils";
 import { toCsv, downloadCsv, type CsvColumn } from "@/lib/csv";
@@ -226,6 +227,10 @@ export function ClientsTable({
       },
       { header: "Boundaries upload", value: (r) => r.boundariesStatus },
       { header: "Data upload", value: (r) => r.dataStatus },
+      ...PRACTICES.map((p) => ({
+        header: `Data: ${p.label}`,
+        value: (r: ClientSeasonRow) => r[p.key],
+      })),
       { header: "Legal entity setup", value: (r) => (r.legalEntitySetup ? "Y" : "N") },
       { header: "Requested", value: (r) => (r.fieldRequested ? "Y" : "N") },
       { header: "QA/QC", value: (r) => r.qaqc },
@@ -467,11 +472,7 @@ export function ClientsTable({
                     />
                   </TableCell>
                   <TableCell>
-                    <InlineEnum
-                      value={r.dataStatus}
-                      onChange={(v) => patch(r.id, { dataStatus: v as never })}
-                      options={DATA_STATUS_OPTIONS}
-                    />
+                    <DataPracticesCell row={r} />
                   </TableCell>
                   <TableCell>
                     <InlineBool
@@ -655,6 +656,33 @@ export function ClientsTable({
         seasonId={seasonId}
       />
     </div>
+  );
+}
+
+/**
+ * Data is a rollup of the management-practice milestones, so it isn't editable
+ * inline — show progress and link to the grower's Data step to edit.
+ */
+function DataPracticesCell({ row }: { row: ClientSeasonRow }) {
+  const p = getPracticeProgress(row);
+  const complete = p.done === p.applicable;
+  return (
+    <Link
+      href={`/clients/${row.clientId}`}
+      title={
+        complete
+          ? "All applicable practices done"
+          : `Pending: ${pendingPractices(row)
+              .map((x) => x.label)
+              .join(", ")}`
+      }
+      className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm hover:underline"
+    >
+      <Badge variant={complete ? "success" : "muted"}>
+        {p.done}/{p.applicable}
+      </Badge>
+      <span className="text-xs text-muted-foreground">practices</span>
+    </Link>
   );
 }
 

@@ -6,6 +6,7 @@ import {
   Crop,
   DataStatus,
   QaqcStatus,
+  PracticeStatus,
   Evidencing,
   EccStatus,
   W8Type,
@@ -140,7 +141,18 @@ export const clientSeasonEditableSchema = z.object({
   enrolledAcres: optionalNumber,
 
   boundariesStatus: z.nativeEnum(DataStatus),
-  dataStatus: z.nativeEnum(DataStatus),
+  // dataStatus is derived from the practices below (see src/lib/practices.ts)
+  // and recomputed server-side, so it is not accepted from the client.
+  practicePlanting: z.nativeEnum(PracticeStatus),
+  practiceHarvest: z.nativeEnum(PracticeStatus),
+  practiceTillage: z.nativeEnum(PracticeStatus),
+  practiceFertilizer: z.nativeEnum(PracticeStatus),
+  practiceLiming: z.nativeEnum(PracticeStatus),
+  practiceCropProtection: z.nativeEnum(PracticeStatus),
+  practiceIrrigation: z.nativeEnum(PracticeStatus),
+  practiceCoverCropping: z.nativeEnum(PracticeStatus),
+  practiceSoilSampling: z.nativeEnum(PracticeStatus),
+  practiceAggregation: z.nativeEnum(PracticeStatus),
   legalEntitySetup: z.boolean(),
   fieldRequested: z.boolean(),
   qaqc: z.nativeEnum(QaqcStatus),
