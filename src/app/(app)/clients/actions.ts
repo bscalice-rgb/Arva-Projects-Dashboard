@@ -57,6 +57,19 @@ export async function setClientSeasonAreas(
     (a) => a.enrolledAcres != null || a.enrolledHectares != null,
   );
 
+  // Each crop x state may appear once — the stored rows are keyed on it.
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const key = `${r.crop}|${r.regionId}`;
+    if (seen.has(key)) {
+      return {
+        ok: false,
+        error: "The same crop + state appears more than once.",
+      };
+    }
+    seen.add(key);
+  }
+
   const cs = await prisma.clientSeason.findUnique({
     where: { id: clientSeasonId },
     select: { clientId: true },
