@@ -109,11 +109,10 @@ export const regionSchema = z.object({
 export type RegionInput = z.infer<typeof regionSchema>;
 
 export const clientSeasonAreaSchema = z.object({
+  crop: z.nativeEnum(Crop),
   regionId: nonEmptyString,
   enrolledAcres: optionalNumber,
   enrolledHectares: optionalNumber,
-  deliveredAcres: optionalNumber,
-  deliveredHectares: optionalNumber,
 });
 export const clientSeasonAreasSchema = z.array(clientSeasonAreaSchema);
 export type ClientSeasonAreaInput = z.infer<typeof clientSeasonAreaSchema>;
@@ -172,8 +171,6 @@ export const clientSeasonEditableSchema = z.object({
 
   fields: optionalNumber,
   tCO2e: optionalNumber,
-  deliveredAcres: optionalNumber,
-  deliveredHectares: optionalNumber,
   amount: optionalNumber,
   paymentDone: z.boolean(),
 

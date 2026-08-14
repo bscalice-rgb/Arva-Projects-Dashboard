@@ -36,11 +36,10 @@ export default async function ClientDetailPage({
           carriedForwardFrom: { include: { season: true } },
           areas: {
             select: {
+              crop: true,
               regionId: true,
               enrolledAcres: true,
               enrolledHectares: true,
-              deliveredAcres: true,
-              deliveredHectares: true,
             },
           },
         },

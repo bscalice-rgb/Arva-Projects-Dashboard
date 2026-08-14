@@ -7,6 +7,7 @@ import {
   COUNTRY_LABELS,
 } from "@/lib/enums";
 import { emptyAgg, addToAgg } from "@/lib/rollups";
+import { deliveredFor } from "@/lib/area";
 import { getPipelineStatus } from "@/lib/pipeline";
 import { PageHeader } from "@/components/page-header";
 import { NoSeason } from "@/components/no-season";
@@ -89,7 +90,7 @@ export default async function CpDetailPage({
   const clients = clientSeasons.map((cs) => ({
     clientId: cs.client.id,
     name: cs.client.name,
-    deliveredAcres: cs.deliveredAcres,
+    deliveredAcres: deliveredFor(cs).deliveredAcres,
     amount: cs.amount,
     currentStageShort: getPipelineStatus(cs).currentStageShort,
     paymentDone: cs.paymentDone,

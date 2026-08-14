@@ -240,8 +240,6 @@ async function main() {
       fieldRequested: true,
       qaqc: "DONE",
       fieldConfirmed: true,
-      deliveredHectares: 780,
-      deliveredAcres: 1927,
     },
   });
 

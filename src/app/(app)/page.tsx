@@ -3,6 +3,7 @@ import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
 import { getPipelineStatus } from "@/lib/pipeline";
 import { computeShedLoaded, deriveAreaUnits } from "@/lib/supply-shed";
+import { deliveredFor } from "@/lib/area";
 import { PageHeader } from "@/components/page-header";
 import { NoSeason } from "@/components/no-season";
 import { DashboardClient } from "./dashboard-client";
@@ -33,11 +34,10 @@ export default async function DashboardPage() {
       include: {
         areas: {
           select: {
+            crop: true,
             regionId: true,
             enrolledAcres: true,
             enrolledHectares: true,
-            deliveredAcres: true,
-            deliveredHectares: true,
           },
         },
         client: {
@@ -97,8 +97,7 @@ export default async function DashboardPage() {
       currentStageShort: status.currentStageShort,
       enrolledAcres: cs.enrolledAcres ?? 0,
       enrolledHectares: cs.enrolledHectares ?? 0,
-      deliveredAcres: cs.deliveredAcres ?? 0,
-      deliveredHectares: cs.deliveredHectares ?? 0,
+      ...deliveredFor(cs),
       tCO2e: cs.tCO2e ?? 0,
       amount: cs.amount ?? 0,
       paymentDone: cs.paymentDone,

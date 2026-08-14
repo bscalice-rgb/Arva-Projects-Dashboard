@@ -27,7 +27,6 @@ import {
   CheckboxField,
   TextField,
   TextAreaField,
-  LinkedAreaFields,
   MultiSelectField,
 } from "@/components/form-fields";
 import {
@@ -56,8 +55,9 @@ import {
 } from "@/lib/practices";
 import { cn } from "@/lib/utils";
 import { saveClientSeason, addClientToSeason, deleteClient } from "../actions";
-import { AreaByState } from "./area-by-state";
+import { AreaByCropState, type AreaRow } from "./area-by-state";
 import type { ClientSeasonRow } from "../types";
+import type { Crop } from "@prisma/client";
 
 type SeasonLink = { seasonId: string; label: string; clientSeasonId: string };
 
@@ -100,8 +100,6 @@ function toForm(r: ClientSeasonRow) {
     bankDetails: r.bankDetails,
     fields: n(r.fields),
     tCO2e: n(r.tCO2e),
-    deliveredHectares: n(r.deliveredHectares),
-    deliveredAcres: n(r.deliveredAcres),
     amount: n(r.amount),
     paymentDone: r.paymentDone,
     comments: r.comments ?? "",
@@ -142,13 +140,7 @@ export function ClientDetail({
   mills: MillOption[];
   regions: RegionOption[];
   clientRegions: { id: string; name: string }[];
-  areas: {
-    regionId: string;
-    enrolledAcres: number | null;
-    enrolledHectares: number | null;
-    deliveredAcres: number | null;
-    deliveredHectares: number | null;
-  }[];
+  areas: AreaRow[];
   seasonLinks: SeasonLink[];
   activeSeasonId: string | null;
   activeSeasonLabel: string | null;
@@ -156,7 +148,6 @@ export function ClientDetail({
   carriedForwardNote: string | null;
   prevSeason: PrevSeasonInfo | null;
 }) {
-  const perState = clientRegions.length > 1;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = useState(false);
@@ -231,8 +222,6 @@ export function ClientDetail({
         bankDetails: form.bankDetails,
         fields: form.fields,
         tCO2e: form.tCO2e,
-        deliveredHectares: form.deliveredHectares,
-        deliveredAcres: form.deliveredAcres,
         amount: form.amount,
         paymentDone: form.paymentDone,
         comments: form.comments,
@@ -388,29 +377,12 @@ export function ClientDetail({
                   onChange={(v) => set("crops", v)}
                   options={CROP_OPTIONS}
                 />
-                {perState ? (
-                  <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-                    Enrolled area: <strong>{form.enrolledHectares || "0"} ha</strong>{" "}
-                    (summed from the states below)
-                  </div>
-                ) : (
-                  <LinkedAreaFields
-                    label="Enrolled area"
-                    acres={form.enrolledAcres}
-                    hectares={form.enrolledHectares}
-                    onAcres={(v) => set("enrolledAcres", v)}
-                    onHectares={(v) => set("enrolledHectares", v)}
-                  />
-                )}
+                <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                  Enrolled area:{" "}
+                  <strong>{form.enrolledHectares || "0"} ha</strong> (summed
+                  from the crop × state grid below)
+                </div>
               </Section>
-
-              {perState && activeSeasonId && record && (
-                <AreaByState
-                  clientSeasonId={record.id}
-                  regions={clientRegions}
-                  initialAreas={areas}
-                />
-              )}
 
               <Section
                 title="Outcomes — as contracted"
@@ -428,21 +400,17 @@ export function ClientDetail({
                     onChange={(v) => set("tCO2e", v)}
                   />
                 </div>
-                {perState ? (
-                  <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-                    Delivered area:{" "}
-                    <strong>{form.deliveredHectares || "0"} ha</strong> (summed
-                    from the states above)
-                  </div>
-                ) : (
-                  <LinkedAreaFields
-                    label="Delivered area"
-                    acres={form.deliveredAcres}
-                    hectares={form.deliveredHectares}
-                    onAcres={(v) => set("deliveredAcres", v)}
-                    onHectares={(v) => set("deliveredHectares", v)}
-                  />
-                )}
+                <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                  Delivered area:{" "}
+                  <strong>
+                    {status?.isComplete
+                      ? `${form.enrolledHectares || "0"} ha`
+                      : "0 ha"}
+                  </strong>{" "}
+                  — {status?.isComplete
+                    ? "pipeline complete, so the enrolled area counts as delivered."
+                    : "counts once the execution pipeline is complete."}
+                </div>
                 <NumberField
                   label="Amount (grower payment, USD)"
                   value={form.amount}
@@ -469,6 +437,19 @@ export function ClientDetail({
               </Section>
             </div>
           </div>
+
+          {activeSeasonId && record && (
+            <AreaByCropState
+              clientSeasonId={record.id}
+              crops={form.crops as Crop[]}
+              regions={clientRegions}
+              initialAreas={areas}
+              onSaved={({ acres, hectares }) => {
+                set("enrolledAcres", acres ? String(acres) : "");
+                set("enrolledHectares", hectares ? String(hectares) : "");
+              }}
+            />
+          )}
 
           <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t bg-background/95 py-3 backdrop-blur">
             {error && <p className="text-sm text-destructive">{error}</p>}

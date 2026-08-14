@@ -33,19 +33,13 @@ export default async function AllotmentsPage() {
     }),
     prisma.clientSeason.findMany({
       where: { seasonId: season.id, client: { userId } },
-      select: {
-        crops: true,
-        enrolledAcres: true,
-        enrolledHectares: true,
-        deliveredAcres: true,
-        deliveredHectares: true,
+      include: {
         areas: {
           select: {
+            crop: true,
             regionId: true,
             enrolledAcres: true,
             enrolledHectares: true,
-            deliveredAcres: true,
-            deliveredHectares: true,
           },
         },
         client: {

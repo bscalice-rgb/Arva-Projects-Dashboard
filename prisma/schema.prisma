@@ -374,8 +374,6 @@ model ClientSeason {
   // ---- Outcomes ----
   fields            Int?
   tCO2e             Float?
-  deliveredAcres    Float?
-  deliveredHectares Float?
   amount            Float? // grower payment, USD
   paymentDone       Boolean @default(false)
 
@@ -404,21 +402,24 @@ model ClientSeason {
 // when a grower uses the per-state breakdown.
 // ---------------------------------------------------------------------------
 
+// The atomic unit of grower area: one row per crop x state. Every area
+// roll-up (by crop, by state, by crop+state, by grower) is a sum over these.
+// Delivered area is NOT stored — it is derived: a grower's area counts as
+// delivered once its execution pipeline is complete (see src/lib/area.ts).
 model ClientSeasonArea {
-  id                String   @id @default(cuid())
-  clientSeasonId    String
-  regionId          String
-  enrolledHectares  Float?
-  enrolledAcres     Float?
-  deliveredHectares Float?
-  deliveredAcres    Float?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(cuid())
+  clientSeasonId   String
+  crop             Crop
+  regionId         String
+  enrolledHectares Float?
+  enrolledAcres    Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   clientSeason ClientSeason @relation(fields: [clientSeasonId], references: [id], onDelete: Cascade)
   region       Region       @relation(fields: [regionId], references: [id], onDelete: Cascade)
 
-  @@unique([clientSeasonId, regionId])
+  @@unique([clientSeasonId, crop, regionId])
   @@index([clientSeasonId])
   @@index([regionId])
 }

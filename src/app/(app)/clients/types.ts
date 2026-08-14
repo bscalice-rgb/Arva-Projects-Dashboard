@@ -10,6 +10,7 @@ import type {
   ContractStatus,
   OrgNodeKind,
 } from "@prisma/client";
+import { deliveredFor } from "@/lib/area";
 
 /** Fully serializable per-season row used by the table, detail and CSV. */
 export type ClientSeasonRow = {
@@ -58,8 +59,10 @@ export type ClientSeasonRow = {
 
   fields: number | null;
   tCO2e: number | null;
-  deliveredAcres: number | null;
-  deliveredHectares: number | null;
+  // Derived, not stored: a grower's enrolled area counts as delivered once its
+  // execution pipeline is complete.
+  deliveredAcres: number;
+  deliveredHectares: number;
   amount: number | null;
   paymentDone: boolean;
 
@@ -110,8 +113,6 @@ type PrismaClientSeason = {
   bankDetails: boolean;
   fields: number | null;
   tCO2e: number | null;
-  deliveredAcres: number | null;
-  deliveredHectares: number | null;
   amount: number | null;
   paymentDone: boolean;
   comments: string | null;
@@ -176,8 +177,7 @@ export function toClientSeasonRow(cs: PrismaClientSeason): ClientSeasonRow {
     bankDetails: cs.bankDetails,
     fields: cs.fields,
     tCO2e: cs.tCO2e,
-    deliveredAcres: cs.deliveredAcres,
-    deliveredHectares: cs.deliveredHectares,
+    ...deliveredFor(cs),
     amount: cs.amount,
     paymentDone: cs.paymentDone,
     comments: cs.comments,

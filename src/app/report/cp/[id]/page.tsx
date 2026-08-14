@@ -12,6 +12,7 @@ import {
   type PracticeInput,
 } from "@/lib/practices";
 import { computeShedLoaded, deriveAreaUnits } from "@/lib/supply-shed";
+import { sumAreas } from "@/lib/area";
 import { formatNumber } from "@/lib/utils";
 import {
   normalizeLang,
@@ -103,11 +104,10 @@ export default async function CpReportPage({
           include: {
             areas: {
               select: {
+                crop: true,
                 regionId: true,
                 enrolledAcres: true,
                 enrolledHectares: true,
-                deliveredAcres: true,
-                deliveredHectares: true,
               },
             },
             client: {
@@ -135,10 +135,8 @@ export default async function CpReportPage({
     (s, cs) => s + (cs.enrolledHectares ?? 0),
     0,
   );
-  const deliveredHa = clientSeasons.reduce(
-    (s, cs) => s + (cs.deliveredHectares ?? 0),
-    0,
-  );
+  // Delivered area follows pipeline completion (summed over crop x state).
+  const deliveredHa = sumAreas(deriveAreaUnits(clientSeasons)).deliveredHectares;
 
   // Completion checks across the categorized checklist.
   const doneChecks = clientSeasons.reduce(

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getPipelineStatus } from "@/lib/pipeline";
+import { deliveredFor } from "@/lib/area";
 
 export type VolumeAgg = {
   clientCount: number;
@@ -32,8 +33,6 @@ export function emptyAgg(): VolumeAgg {
 type CsForAgg = Parameters<typeof getPipelineStatus>[0] & {
   enrolledAcres: number | null;
   enrolledHectares: number | null;
-  deliveredAcres: number | null;
-  deliveredHectares: number | null;
   tCO2e: number | null;
   fields: number | null;
   amount: number | null;
@@ -44,8 +43,10 @@ export function addToAgg(agg: VolumeAgg, cs: CsForAgg) {
   agg.clientCount += 1;
   agg.enrolledAcres += cs.enrolledAcres ?? 0;
   agg.enrolledHectares += cs.enrolledHectares ?? 0;
-  agg.deliveredAcres += cs.deliveredAcres ?? 0;
-  agg.deliveredHectares += cs.deliveredHectares ?? 0;
+  // Delivered follows pipeline completion rather than being tracked twice.
+  const d = deliveredFor(cs);
+  agg.deliveredAcres += d.deliveredAcres;
+  agg.deliveredHectares += d.deliveredHectares;
   agg.tCO2e += cs.tCO2e ?? 0;
   agg.fields += cs.fields ?? 0;
   agg.growerPayments += cs.amount ?? 0;
