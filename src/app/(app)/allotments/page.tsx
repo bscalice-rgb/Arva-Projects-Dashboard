@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
-import { computeShedLoaded } from "@/lib/supply-shed";
+import { computeShedLoaded, deriveAreaUnits } from "@/lib/supply-shed";
 import { PageHeader } from "@/components/page-header";
 import { NoSeason } from "@/components/no-season";
 import { AllotmentsClient, type ShedRow } from "./allotments-client";
@@ -35,8 +35,19 @@ export default async function AllotmentsPage() {
       where: { seasonId: season.id, client: { userId } },
       select: {
         crops: true,
+        enrolledAcres: true,
+        enrolledHectares: true,
         deliveredAcres: true,
         deliveredHectares: true,
+        areas: {
+          select: {
+            regionId: true,
+            enrolledAcres: true,
+            enrolledHectares: true,
+            deliveredAcres: true,
+            deliveredHectares: true,
+          },
+        },
         client: {
           select: {
             id: true,
@@ -65,20 +76,7 @@ export default async function AllotmentsPage() {
     }),
   ]);
 
-  // Reshape client-seasons for the matcher (regions -> regionIds).
-  const csForMatch = clientSeasons.map((cs) => ({
-    crops: cs.crops,
-    deliveredAcres: cs.deliveredAcres,
-    deliveredHectares: cs.deliveredHectares,
-    client: {
-      id: cs.client.id,
-      country: cs.client.country,
-      regionIds: cs.client.regions.map((r) => r.id),
-      orgNode: { channelPartnerId: cs.client.orgNode.channelPartnerId },
-    },
-  }));
-
-  const loaded = computeShedLoaded(sheds, csForMatch);
+  const loaded = computeShedLoaded(sheds, deriveAreaUnits(clientSeasons));
 
   const rows: ShedRow[] = sheds.map((s) => {
     const l = loaded.get(s.id) ?? { loadedAcres: 0, loadedHectares: 0 };

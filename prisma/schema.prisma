@@ -132,10 +132,11 @@ model Region {
   userId    String?
   createdAt DateTime @default(now())
 
-  user        User?        @relation(fields: [userId], references: [id])
-  clients     Client[]     @relation("ClientRegions")
-  supplySheds SupplyShed[]
-  mills       Mill[]
+  user              User?              @relation(fields: [userId], references: [id])
+  clients           Client[]           @relation("ClientRegions")
+  supplySheds       SupplyShed[]
+  mills             Mill[]
+  clientSeasonAreas ClientSeasonArea[]
 
   @@unique([userId, country, name])
   @@index([userId])
@@ -365,12 +366,38 @@ model ClientSeason {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  client Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  season Season             @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  areas  ClientSeasonArea[]
 
   @@unique([clientId, seasonId])
   @@index([seasonId])
   @@index([clientId])
+}
+
+// ---------------------------------------------------------------------------
+// Per-season, per-region area — a grower can have area in more than one state.
+// The ClientSeason enrolled/delivered totals are kept as the sum of these rows
+// when a grower uses the per-state breakdown.
+// ---------------------------------------------------------------------------
+
+model ClientSeasonArea {
+  id                String   @id @default(cuid())
+  clientSeasonId    String
+  regionId          String
+  enrolledHectares  Float?
+  enrolledAcres     Float?
+  deliveredHectares Float?
+  deliveredAcres    Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  clientSeason ClientSeason @relation(fields: [clientSeasonId], references: [id], onDelete: Cascade)
+  region       Region       @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([clientSeasonId, regionId])
+  @@index([clientSeasonId])
+  @@index([regionId])
 }
 
 // ---------------------------------------------------------------------------

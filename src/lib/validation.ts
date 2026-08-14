@@ -107,6 +107,16 @@ export const regionSchema = z.object({
 });
 export type RegionInput = z.infer<typeof regionSchema>;
 
+export const clientSeasonAreaSchema = z.object({
+  regionId: nonEmptyString,
+  enrolledAcres: optionalNumber,
+  enrolledHectares: optionalNumber,
+  deliveredAcres: optionalNumber,
+  deliveredHectares: optionalNumber,
+});
+export const clientSeasonAreasSchema = z.array(clientSeasonAreaSchema);
+export type ClientSeasonAreaInput = z.infer<typeof clientSeasonAreaSchema>;
+
 export const clientSchema = z.object({
   // Enrollment channel: a Channel Partner id, or null for a direct grower.
   channelPartnerId: optionalString,

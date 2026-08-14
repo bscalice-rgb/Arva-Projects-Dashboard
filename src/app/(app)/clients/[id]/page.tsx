@@ -34,6 +34,15 @@ export default async function ClientDetailPage({
           ...clientSeasonInclude,
           season: true,
           carriedForwardFrom: { include: { season: true } },
+          areas: {
+            select: {
+              regionId: true,
+              enrolledAcres: true,
+              enrolledHectares: true,
+              deliveredAcres: true,
+              deliveredHectares: true,
+            },
+          },
         },
         orderBy: { season: { year: "desc" } },
       },
@@ -135,6 +144,8 @@ export default async function ClientDetailPage({
       channelPartners={channelPartners}
       mills={mills.map((m) => ({ id: m.id, name: millLabel(m), crop: m.crop }))}
       regions={regions}
+      clientRegions={client.regions.map((r) => ({ id: r.id, name: r.name }))}
+      areas={activeCs?.areas ?? []}
       seasonLinks={seasonLinks}
       activeSeasonId={targetSeasonId}
       activeSeasonLabel={activeSeasonLabel}

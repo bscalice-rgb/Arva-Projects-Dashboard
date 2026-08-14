@@ -50,6 +50,7 @@ import {
 import { PIPELINE_STAGES, getPipelineStatus } from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
 import { saveClientSeason, addClientToSeason, deleteClient } from "../actions";
+import { AreaByState } from "./area-by-state";
 import type { ClientSeasonRow } from "../types";
 
 type SeasonLink = { seasonId: string; label: string; clientSeasonId: string };
@@ -105,6 +106,8 @@ export function ClientDetail({
   channelPartners,
   mills,
   regions,
+  clientRegions,
+  areas,
   seasonLinks,
   activeSeasonId,
   activeSeasonLabel,
@@ -123,6 +126,14 @@ export function ClientDetail({
   channelPartners: CpOption[];
   mills: MillOption[];
   regions: RegionOption[];
+  clientRegions: { id: string; name: string }[];
+  areas: {
+    regionId: string;
+    enrolledAcres: number | null;
+    enrolledHectares: number | null;
+    deliveredAcres: number | null;
+    deliveredHectares: number | null;
+  }[];
   seasonLinks: SeasonLink[];
   activeSeasonId: string | null;
   activeSeasonLabel: string | null;
@@ -130,6 +141,7 @@ export function ClientDetail({
   carriedForwardNote: string | null;
   prevSeason: PrevSeasonInfo | null;
 }) {
+  const perState = clientRegions.length > 1;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = useState(false);
@@ -352,14 +364,29 @@ export function ClientDetail({
                   onChange={(v) => set("crops", v)}
                   options={CROP_OPTIONS}
                 />
-                <LinkedAreaFields
-                  label="Enrolled area"
-                  acres={form.enrolledAcres}
-                  hectares={form.enrolledHectares}
-                  onAcres={(v) => set("enrolledAcres", v)}
-                  onHectares={(v) => set("enrolledHectares", v)}
-                />
+                {perState ? (
+                  <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                    Enrolled area: <strong>{form.enrolledHectares || "0"} ha</strong>{" "}
+                    (summed from the states below)
+                  </div>
+                ) : (
+                  <LinkedAreaFields
+                    label="Enrolled area"
+                    acres={form.enrolledAcres}
+                    hectares={form.enrolledHectares}
+                    onAcres={(v) => set("enrolledAcres", v)}
+                    onHectares={(v) => set("enrolledHectares", v)}
+                  />
+                )}
               </Section>
+
+              {perState && activeSeasonId && record && (
+                <AreaByState
+                  clientSeasonId={record.id}
+                  regions={clientRegions}
+                  initialAreas={areas}
+                />
+              )}
 
               <Section
                 title="Outcomes — as contracted"
@@ -377,13 +404,21 @@ export function ClientDetail({
                     onChange={(v) => set("tCO2e", v)}
                   />
                 </div>
-                <LinkedAreaFields
-                  label="Delivered area"
-                  acres={form.deliveredAcres}
-                  hectares={form.deliveredHectares}
-                  onAcres={(v) => set("deliveredAcres", v)}
-                  onHectares={(v) => set("deliveredHectares", v)}
-                />
+                {perState ? (
+                  <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                    Delivered area:{" "}
+                    <strong>{form.deliveredHectares || "0"} ha</strong> (summed
+                    from the states above)
+                  </div>
+                ) : (
+                  <LinkedAreaFields
+                    label="Delivered area"
+                    acres={form.deliveredAcres}
+                    hectares={form.deliveredHectares}
+                    onAcres={(v) => set("deliveredAcres", v)}
+                    onHectares={(v) => set("deliveredHectares", v)}
+                  />
+                )}
                 <NumberField
                   label="Amount (grower payment, USD)"
                   value={form.amount}

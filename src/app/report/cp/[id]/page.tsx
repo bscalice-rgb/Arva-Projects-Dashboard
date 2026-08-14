@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
 import type { PipelineInput } from "@/lib/pipeline";
-import { computeShedLoaded } from "@/lib/supply-shed";
+import { computeShedLoaded, deriveAreaUnits } from "@/lib/supply-shed";
 import { formatNumber } from "@/lib/utils";
 import {
   normalizeLang,
@@ -95,6 +95,15 @@ export default async function CpReportPage({
             client: { orgNode: { channelPartnerId: id } },
           },
           include: {
+            areas: {
+              select: {
+                regionId: true,
+                enrolledAcres: true,
+                enrolledHectares: true,
+                deliveredAcres: true,
+                deliveredHectares: true,
+              },
+            },
             client: {
               select: {
                 id: true,
@@ -184,21 +193,8 @@ export default async function CpReportPage({
   if (!cpSeason?.w8Provided) cpTodos.push(t.todoW8);
   if (!cpSeason?.bankDetails) cpTodos.push(t.todoBank);
 
-  // Allotment loaded roll-up.
-  const csForMatch = clientSeasons.map((cs) => ({
-    crops: cs.crops,
-    deliveredAcres: cs.deliveredAcres,
-    deliveredHectares: cs.deliveredHectares,
-    enrolledAcres: cs.enrolledAcres,
-    enrolledHectares: cs.enrolledHectares,
-    client: {
-      id: cs.client.id,
-      country: cs.client.country,
-      regionIds: cs.client.regions.map((r) => r.id),
-      orgNode: { channelPartnerId: cs.client.orgNode.channelPartnerId },
-    },
-  }));
-  const loaded = computeShedLoaded(sheds, csForMatch);
+  // Allotment loaded roll-up, attributed per state.
+  const loaded = computeShedLoaded(sheds, deriveAreaUnits(clientSeasons));
   const allotments = sheds.map((s) => {
     const l = loaded.get(s.id) ?? {
       loadedHectares: 0,
