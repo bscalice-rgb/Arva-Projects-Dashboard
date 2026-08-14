@@ -8,7 +8,6 @@ import type { PipelineInput } from "@/lib/pipeline";
 import {
   PRACTICES,
   deriveDataStatus,
-  getPracticeProgress,
   pendingPractices,
   type PracticeInput,
 } from "@/lib/practices";
@@ -69,10 +68,8 @@ const REPORT_CATEGORIES: ReportCategory[] = [
   },
 ];
 
-// Flat, ordered view (category order → item order) for "next step" logic.
-const FLAT_ITEMS = REPORT_CATEGORIES.flatMap((c) =>
-  c.items.map((it) => ({ ...it, categoryKey: c.key })),
-);
+// Flat, ordered view (category order → item order) for completion counts.
+const FLAT_ITEMS = REPORT_CATEGORIES.flatMap((c) => c.items);
 const TOTAL_ITEMS = FLAT_ITEMS.length;
 
 export default async function CpReportPage({
@@ -96,7 +93,7 @@ export default async function CpReportPage({
     ? await prisma.season.findUnique({ where: { id: seasonParam } })
     : await getSelectedSeason();
 
-  const [clientSeasons, cpSeason, sheds] = season
+  const [clientSeasons, sheds] = season
     ? await Promise.all([
         prisma.clientSeason.findMany({
           where: {
@@ -125,21 +122,13 @@ export default async function CpReportPage({
           },
           orderBy: { client: { name: "asc" } },
         }),
-        prisma.channelPartnerSeason.findUnique({
-          where: {
-            channelPartnerId_seasonId: {
-              channelPartnerId: id,
-              seasonId: season.id,
-            },
-          },
-        }),
         prisma.supplyShed.findMany({
           where: { seasonId: season.id, channelPartnerId: id },
           include: { region: { select: { name: true } } },
           orderBy: [{ crop: "asc" }],
         }),
       ])
-    : [[], null, []];
+    : [[], []];
 
   const total = clientSeasons.length;
   const enrolledHa = clientSeasons.reduce(
@@ -196,33 +185,6 @@ export default async function CpReportPage({
     total > 0 &&
     practiceProgress.every((p) => p.applicable === 0 || p.done === p.applicable);
 
-  // "What we need next": group growers by their first incomplete checklist item.
-  const nextCounts = new Map<
-    number,
-    { label: string; category: string; count: number }
-  >();
-  for (const cs of clientSeasons) {
-    const idx = FLAT_ITEMS.findIndex((it) => !it.done(cs));
-    if (idx === -1) continue; // fully complete
-    const it = FLAT_ITEMS[idx];
-    if (!nextCounts.has(idx))
-      nextCounts.set(idx, {
-        label: t.items[it.key],
-        category: t.categories[it.categoryKey],
-        count: 0,
-      });
-    nextCounts.get(idx)!.count += 1;
-  }
-  const nextStepRows = [...nextCounts.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([, v]) => v);
-
-  // CP's own outstanding compliance items.
-  const cpTodos: string[] = [];
-  if (!cpSeason?.agreementSigned) cpTodos.push(t.todoAgreement);
-  if (!cpSeason?.w8Provided) cpTodos.push(t.todoW8);
-  if (!cpSeason?.bankDetails) cpTodos.push(t.todoBank);
-
   // Allotment loaded roll-up, attributed per state.
   const loaded = computeShedLoaded(sheds, deriveAreaUnits(clientSeasons));
   const allotments = sheds.map((s) => {
@@ -257,7 +219,6 @@ export default async function CpReportPage({
     crops: cs.crops.map((c) => t.crop[c]).join(", ") || "—",
     regions: cs.client.regions.map((r) => r.name).join(", ") || "—",
     enrolledHa: cs.enrolledHectares,
-    practiceCount: getPracticeProgress(cs),
     pendingPractices: pendingPractices(cs).map((p) => t.practices[p.key]),
     categories: REPORT_CATEGORIES.map((cat) => ({
       name: t.categories[cat.key],
@@ -274,9 +235,6 @@ export default async function CpReportPage({
     month: "long",
     day: "numeric",
   });
-
-  const nothingOutstanding =
-    nextStepRows.length === 0 && cpTodos.length === 0 && total > 0;
 
   const baseHref = `/report/cp/${id}?season=${season?.id ?? ""}`;
 
@@ -496,75 +454,8 @@ export default async function CpReportPage({
               )}
             </Section>
 
-            {/* What we need next */}
-            <Section title={t.secNext}>
-              {total === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {t.noGrowersPartner}
-                </p>
-              ) : nothingOutstanding ? (
-                <p className="text-sm font-medium text-success">
-                  {t.allComplete}
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {nextStepRows.length > 0 && (
-                    <div>
-                      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {t.growerNextSteps}
-                      </div>
-                      <ul className="space-y-1.5">
-                        {nextStepRows.map((r) => (
-                          <li
-                            key={`${r.category}-${r.label}`}
-                            className="flex items-center gap-3 text-sm"
-                          >
-                            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-2 text-xs font-semibold text-primary-foreground">
-                              {r.count}
-                            </span>
-                            <span>
-                              {t.growersNext(r.count, r.label, r.category)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {cpTodos.length > 0 && (
-                    <div>
-                      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {t.partnerTodos}
-                      </div>
-                      <ul className="space-y-1 text-sm">
-                        {cpTodos.map((todo) => (
-                          <li key={todo} className="flex items-center gap-2">
-                            <X className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                            {todo}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </Section>
-
-            {/* Footer: compliance + confidentiality */}
-            <div className="mt-6 flex flex-wrap items-center gap-3 border-t pt-4 text-xs">
-              <span className="font-semibold text-muted-foreground">
-                {t.compliance}
-              </span>
-              <ComplianceChip
-                label={t.agreement}
-                ok={!!cpSeason?.agreementSigned}
-              />
-              <ComplianceChip label={t.w8} ok={!!cpSeason?.w8Provided} />
-              <ComplianceChip
-                label={t.bankDetails}
-                ok={!!cpSeason?.bankDetails}
-              />
-            </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+            {/* Footer: confidentiality */}
+            <p className="mt-6 border-t pt-4 text-[11px] leading-relaxed text-muted-foreground">
               {t.confidential(cp.entityName, generated)}
             </p>
 
@@ -623,10 +514,7 @@ export default async function CpReportPage({
                       </div>
                       {g.pendingPractices.length > 0 && (
                         <div className="mt-2 border-t pt-1.5 text-[11px] text-muted-foreground">
-                          <span className="tabular-nums">
-                            {g.practiceCount.done}/{g.practiceCount.applicable}
-                          </span>{" "}
-                          · {t.pendingData(g.pendingPractices.join(", "))}
+                          {t.pendingData(g.pendingPractices.join(", "))}
                         </div>
                       )}
                     </div>
@@ -691,15 +579,3 @@ function Section({
   );
 }
 
-function ComplianceChip({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
-        ok ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
-      }`}
-    >
-      {ok ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-      {label}
-    </span>
-  );
-}

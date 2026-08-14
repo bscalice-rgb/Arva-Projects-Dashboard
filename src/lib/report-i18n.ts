@@ -28,24 +28,11 @@ export type ReportDict = {
   growersComplete: (done: number, total: number) => string;
   secPipeline: string;
   secAllotment: string;
-  secNext: string;
   noGrowersYet: string;
-  noGrowersPartner: string;
   enrolledLabel: (e: string, n: string, pct: number) => string;
   toEnroll: (x: string) => string;
   deliveredNote: (d: string, pct: number) => string;
   noAllotments: string;
-  allComplete: string;
-  growerNextSteps: string;
-  growersNext: (count: number, item: string, category: string) => string;
-  partnerTodos: string;
-  todoAgreement: string;
-  todoW8: string;
-  todoBank: string;
-  compliance: string;
-  agreement: string;
-  w8: string;
-  bankDetails: string;
   confidential: (cp: string, date: string) => string;
   growerDetail: string;
   legend: string;
@@ -292,26 +279,12 @@ const DICTS: Record<ReportLang, ReportDict> = {
     growersComplete: (d, t) => `${d} of ${t} growers complete`,
     secPipeline: "Pipeline progress — growers with each step done",
     secAllotment: "Allotment progress (hectares)",
-    secNext: "What we need next — focus here",
     noGrowersYet: "No growers enrolled yet.",
-    noGrowersPartner: "No growers enrolled for this partner yet.",
     enrolledLabel: (e, n, pct) => `Enrolled ${e} / ${n} ha (${pct}%)`,
     toEnroll: (x) => `${x} to enroll`,
     deliveredNote: (d, pct) =>
       `Delivered ${d} ha (${pct}%) — fills in later in the season`,
     noAllotments: "No allotments set for this partner.",
-    allComplete: "All growers are complete — nothing outstanding. 🎉",
-    growerNextSteps: "Grower next steps",
-    growersNext: (c, item, cat) =>
-      `${c === 1 ? "grower" : "growers"} — next: ${item} (${cat})`,
-    partnerTodos: "Partner to-dos",
-    todoAgreement: "Sign the CP agreement",
-    todoW8: "Provide the CP W-8",
-    todoBank: "Provide bank details",
-    compliance: "Partner compliance:",
-    agreement: "Agreement",
-    w8: "W-8",
-    bankDetails: "Bank details",
     confidential: (cp, date) =>
       `Confidential — prepared by Arva Intelligence for ${cp}. Figures reflect program data as of ${date}.`,
     growerDetail: "Grower detail",
@@ -343,26 +316,12 @@ const DICTS: Record<ReportLang, ReportDict> = {
     growersComplete: (d, t) => `${d} de ${t} produtores concluídos`,
     secPipeline: "Progresso do pipeline — produtores com cada etapa concluída",
     secAllotment: "Progresso das alocações (hectares)",
-    secNext: "O que precisamos a seguir — foco aqui",
     noGrowersYet: "Nenhum produtor inscrito ainda.",
-    noGrowersPartner: "Nenhum produtor inscrito para este parceiro ainda.",
     enrolledLabel: (e, n, pct) => `Inscrito ${e} / ${n} ha (${pct}%)`,
     toEnroll: (x) => `${x} a inscrever`,
     deliveredNote: (d, pct) =>
       `Entregue ${d} ha (${pct}%) — será preenchido mais adiante na safra`,
     noAllotments: "Nenhuma alocação definida para este parceiro.",
-    allComplete: "Todos os produtores concluídos — nada pendente. 🎉",
-    growerNextSteps: "Próximos passos dos produtores",
-    growersNext: (c, item, cat) =>
-      `${c === 1 ? "produtor" : "produtores"} — próximo: ${item} (${cat})`,
-    partnerTodos: "Pendências do parceiro",
-    todoAgreement: "Assinar o contrato do parceiro",
-    todoW8: "Fornecer o W-8 do parceiro",
-    todoBank: "Fornecer os dados bancários",
-    compliance: "Conformidade do parceiro:",
-    agreement: "Contrato",
-    w8: "W-8",
-    bankDetails: "Dados bancários",
     confidential: (cp, date) =>
       `Confidencial — preparado pela Arva Intelligence para ${cp}. Os números refletem os dados do programa em ${date}.`,
     growerDetail: "Detalhe por produtor",
@@ -394,26 +353,12 @@ const DICTS: Record<ReportLang, ReportDict> = {
     growersComplete: (d, t) => `${d} de ${t} productores completos`,
     secPipeline: "Progreso del pipeline — productores con cada paso completado",
     secAllotment: "Progreso de asignaciones (hectáreas)",
-    secNext: "Qué necesitamos a continuación — enfócate aquí",
     noGrowersYet: "Aún no hay productores inscritos.",
-    noGrowersPartner: "Aún no hay productores inscritos para este socio.",
     enrolledLabel: (e, n, pct) => `Inscrito ${e} / ${n} ha (${pct}%)`,
     toEnroll: (x) => `${x} por inscribir`,
     deliveredNote: (d, pct) =>
       `Entregado ${d} ha (${pct}%) — se completa más adelante en la temporada`,
     noAllotments: "No hay asignaciones definidas para este socio.",
-    allComplete: "Todos los productores completos — nada pendiente. 🎉",
-    growerNextSteps: "Próximos pasos de los productores",
-    growersNext: (c, item, cat) =>
-      `${c === 1 ? "productor" : "productores"} — siguiente: ${item} (${cat})`,
-    partnerTodos: "Pendientes del socio",
-    todoAgreement: "Firmar el contrato del socio",
-    todoW8: "Proporcionar el W-8 del socio",
-    todoBank: "Proporcionar los datos bancarios",
-    compliance: "Cumplimiento del socio:",
-    agreement: "Contrato",
-    w8: "W-8",
-    bankDetails: "Datos bancarios",
     confidential: (cp, date) =>
       `Confidencial — preparado por Arva Intelligence para ${cp}. Las cifras reflejan los datos del programa al ${date}.`,
     growerDetail: "Detalle por productor",
