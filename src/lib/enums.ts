@@ -7,8 +7,8 @@ import {
   Country,
   Crop,
   DataStatus,
-  QaqcNpks,
-  QaqcFlags,
+  QaqcStatus,
+  PracticeStatus,
   Evidencing,
   EccStatus,
   W8Type,
@@ -78,15 +78,17 @@ export const DATA_STATUS_LABELS: Record<DataStatus, string> = {
   DONE: "Done",
 };
 
-export const QAQC_NPKS_LABELS: Record<QaqcNpks, string> = {
-  NOT_DONE: "Not done",
+export const QAQC_STATUS_LABELS: Record<QaqcStatus, string> = {
+  NOT_STARTED: "Not started",
+  IN_PROGRESS: "In progress",
   DONE: "Done",
 };
 
-export const QAQC_FLAGS_LABELS: Record<QaqcFlags, string> = {
-  OPEN: "Open",
-  RESOLVED: "Resolved",
-  NONE: "No flags",
+export const PRACTICE_STATUS_LABELS: Record<PracticeStatus, string> = {
+  NOT_STARTED: "Not started",
+  IN_PROGRESS: "In progress",
+  DONE: "Done",
+  N_A: "N/A",
 };
 
 export const EVIDENCING_LABELS: Record<Evidencing, string> = {
@@ -127,8 +129,8 @@ export const CHANNEL_PARTNER_TYPE_OPTIONS = opts(CHANNEL_PARTNER_TYPE_LABELS);
 export const COUNTRY_OPTIONS = opts(COUNTRY_LABELS);
 export const CROP_OPTIONS = opts(CROP_LABELS);
 export const DATA_STATUS_OPTIONS = opts(DATA_STATUS_LABELS);
-export const QAQC_NPKS_OPTIONS = opts(QAQC_NPKS_LABELS);
-export const QAQC_FLAGS_OPTIONS = opts(QAQC_FLAGS_LABELS);
+export const QAQC_STATUS_OPTIONS = opts(QAQC_STATUS_LABELS);
+export const PRACTICE_STATUS_OPTIONS = opts(PRACTICE_STATUS_LABELS);
 export const EVIDENCING_OPTIONS = opts(EVIDENCING_LABELS);
 export const ECC_STATUS_OPTIONS = opts(ECC_STATUS_LABELS);
 export const W8_TYPE_OPTIONS = opts(W8_TYPE_LABELS);

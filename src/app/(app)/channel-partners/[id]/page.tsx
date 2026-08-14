@@ -7,12 +7,17 @@ import {
   COUNTRY_LABELS,
 } from "@/lib/enums";
 import { emptyAgg, addToAgg } from "@/lib/rollups";
+import { deliveredFor } from "@/lib/area";
 import { getPipelineStatus } from "@/lib/pipeline";
 import { PageHeader } from "@/components/page-header";
 import { NoSeason } from "@/components/no-season";
 import { CpDetail } from "./cp-detail";
 
 export const dynamic = "force-dynamic";
+
+const millLabel = (m: { name: string; group: { name: string } | null }) =>
+  m.group ? `${m.group.name} — ${m.name}` : m.name;
+
 
 export default async function CpDetailPage({
   params,
@@ -37,7 +42,7 @@ export default async function CpDetailPage({
     );
   }
 
-  const [cpSeason, clientSeasons, mills, regions] = await Promise.all([
+  const [cpSeason, prevCpSeason, clientSeasons, mills, regions] = await Promise.all([
     prisma.channelPartnerSeason.findUnique({
       where: {
         channelPartnerId_seasonId: {
@@ -46,6 +51,13 @@ export default async function CpDetailPage({
         },
       },
       include: { payees: { orderBy: { createdAt: "asc" } } },
+    }),
+    // Most recent earlier season this CP was set up for — used to hint
+    // "on file last year, re-collect for this season".
+    prisma.channelPartnerSeason.findFirst({
+      where: { channelPartnerId: id, season: { year: { lt: season.year } } },
+      orderBy: { season: { year: "desc" } },
+      include: { season: { select: { label: true } } },
     }),
     prisma.clientSeason.findMany({
       where: {
@@ -57,8 +69,13 @@ export default async function CpDetailPage({
     }),
     prisma.mill.findMany({
       where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, crop: true },
+      orderBy: [{ group: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        crop: true,
+        group: { select: { name: true } },
+      },
     }),
     prisma.region.findMany({
       where: { userId },
@@ -73,7 +90,7 @@ export default async function CpDetailPage({
   const clients = clientSeasons.map((cs) => ({
     clientId: cs.client.id,
     name: cs.client.name,
-    deliveredAcres: cs.deliveredAcres,
+    deliveredAcres: deliveredFor(cs).deliveredAcres,
     amount: cs.amount,
     currentStageShort: getPipelineStatus(cs).currentStageShort,
     paymentDone: cs.paymentDone,
@@ -99,10 +116,20 @@ export default async function CpDetailPage({
             }
           : null
       }
+      prevCompliance={
+        prevCpSeason
+          ? {
+              seasonLabel: prevCpSeason.season.label,
+              agreementSigned: prevCpSeason.agreementSigned,
+              w8Provided: prevCpSeason.w8Provided,
+              bankDetails: prevCpSeason.bankDetails,
+            }
+          : null
+      }
       agg={agg}
       payees={cpSeason?.payees ?? []}
       clients={clients}
-      mills={mills}
+      mills={mills.map((m) => ({ id: m.id, name: millLabel(m), crop: m.crop }))}
       regions={regions}
     />
   );

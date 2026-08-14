@@ -3,15 +3,17 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Check, Circle, Dot } from "lucide-react";
+import { ArrowLeft, Pencil, Check, ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -25,7 +27,6 @@ import {
   CheckboxField,
   TextField,
   TextAreaField,
-  LinkedAreaFields,
   MultiSelectField,
 } from "@/components/form-fields";
 import {
@@ -36,12 +37,10 @@ import {
   type ClientIdentity,
 } from "../client-form-dialog";
 import {
-  COUNTRY_LABELS,
-  CROP_LABELS,
   CROP_OPTIONS,
   DATA_STATUS_OPTIONS,
-  QAQC_NPKS_OPTIONS,
-  QAQC_FLAGS_OPTIONS,
+  PRACTICE_STATUS_OPTIONS,
+  QAQC_STATUS_OPTIONS,
   EVIDENCING_OPTIONS,
   ECC_STATUS_OPTIONS,
   W8_TYPE_OPTIONS,
@@ -49,11 +48,25 @@ import {
   ORG_NODE_KIND_LABELS,
 } from "@/lib/enums";
 import { PIPELINE_STAGES, getPipelineStatus } from "@/lib/pipeline";
+import {
+  PRACTICES,
+  getPracticeProgress,
+  deriveDataStatus,
+} from "@/lib/practices";
 import { cn } from "@/lib/utils";
-import { saveClientSeason, addClientToSeason } from "../actions";
+import { saveClientSeason, addClientToSeason, deleteClient } from "../actions";
+import { AreaByCropState, type AreaRow } from "./area-by-state";
 import type { ClientSeasonRow } from "../types";
+import type { Crop } from "@prisma/client";
 
 type SeasonLink = { seasonId: string; label: string; clientSeasonId: string };
+
+type PrevSeasonInfo = {
+  label: string;
+  hadW8: boolean;
+  contractSigned: boolean;
+  bankDetails: boolean;
+};
 
 function toForm(r: ClientSeasonRow) {
   const n = (v: number | null) => (v == null ? "" : String(v));
@@ -61,11 +74,20 @@ function toForm(r: ClientSeasonRow) {
     crops: r.crops as string[],
     enrolledHectares: n(r.enrolledHectares),
     enrolledAcres: n(r.enrolledAcres),
+    boundariesStatus: r.boundariesStatus,
+    practicePlanting: r.practicePlanting,
+    practiceHarvest: r.practiceHarvest,
+    practiceTillage: r.practiceTillage,
+    practiceFertilizer: r.practiceFertilizer,
+    practiceLiming: r.practiceLiming,
+    practiceCropProtection: r.practiceCropProtection,
+    practiceIrrigation: r.practiceIrrigation,
+    practiceCoverCropping: r.practiceCoverCropping,
+    practiceSoilSampling: r.practiceSoilSampling,
+    practiceAggregation: r.practiceAggregation,
     legalEntitySetup: r.legalEntitySetup,
-    dataStatus: r.dataStatus,
     fieldRequested: r.fieldRequested,
-    qaqcNpks: r.qaqcNpks,
-    qaqcFlags: r.qaqcFlags,
+    qaqc: r.qaqc,
     fieldConfirmed: r.fieldConfirmed,
     evidencing: r.evidencing,
     ecc: r.ecc,
@@ -78,8 +100,6 @@ function toForm(r: ClientSeasonRow) {
     bankDetails: r.bankDetails,
     fields: n(r.fields),
     tCO2e: n(r.tCO2e),
-    deliveredHectares: n(r.deliveredHectares),
-    deliveredAcres: n(r.deliveredAcres),
     amount: n(r.amount),
     paymentDone: r.paymentDone,
     comments: r.comments ?? "",
@@ -99,11 +119,14 @@ export function ClientDetail({
   channelPartners,
   mills,
   regions,
+  clientRegions,
+  areas,
   seasonLinks,
   activeSeasonId,
   activeSeasonLabel,
   record,
   carriedForwardNote,
+  prevSeason,
 }: {
   identity: ClientIdentity;
   displayCountry: string;
@@ -116,11 +139,14 @@ export function ClientDetail({
   channelPartners: CpOption[];
   mills: MillOption[];
   regions: RegionOption[];
+  clientRegions: { id: string; name: string }[];
+  areas: AreaRow[];
   seasonLinks: SeasonLink[];
   activeSeasonId: string | null;
   activeSeasonLabel: string | null;
   record: ClientSeasonRow | null;
   carriedForwardNote: string | null;
+  prevSeason: PrevSeasonInfo | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -148,6 +174,20 @@ export function ClientDetail({
     });
   }
 
+  function onDeleteGrower() {
+    if (
+      !confirm(
+        `Delete grower "${identity.name}"? This permanently removes the grower and its records across ALL seasons.`,
+      )
+    )
+      return;
+    startTransition(async () => {
+      const res = await deleteClient(identity.id);
+      if (!res.ok) setError(res.error);
+      else router.push("/clients");
+    });
+  }
+
   function save() {
     if (!form || !record) return;
     setError(null);
@@ -156,11 +196,20 @@ export function ClientDetail({
         crops: form.crops,
         enrolledHectares: form.enrolledHectares,
         enrolledAcres: form.enrolledAcres,
+        boundariesStatus: form.boundariesStatus,
+        practicePlanting: form.practicePlanting,
+        practiceHarvest: form.practiceHarvest,
+        practiceTillage: form.practiceTillage,
+        practiceFertilizer: form.practiceFertilizer,
+        practiceLiming: form.practiceLiming,
+        practiceCropProtection: form.practiceCropProtection,
+        practiceIrrigation: form.practiceIrrigation,
+        practiceCoverCropping: form.practiceCoverCropping,
+        practiceSoilSampling: form.practiceSoilSampling,
+        practiceAggregation: form.practiceAggregation,
         legalEntitySetup: form.legalEntitySetup,
-        dataStatus: form.dataStatus,
         fieldRequested: form.fieldRequested,
-        qaqcNpks: form.qaqcNpks,
-        qaqcFlags: form.qaqcFlags,
+        qaqc: form.qaqc,
         fieldConfirmed: form.fieldConfirmed,
         evidencing: form.evidencing,
         ecc: form.ecc,
@@ -173,8 +222,6 @@ export function ClientDetail({
         bankDetails: form.bankDetails,
         fields: form.fields,
         tCO2e: form.tCO2e,
-        deliveredHectares: form.deliveredHectares,
-        deliveredAcres: form.deliveredAcres,
         amount: form.amount,
         paymentDone: form.paymentDone,
         comments: form.comments,
@@ -190,29 +237,20 @@ export function ClientDetail({
   // Live pipeline status from current form.
   const status = form
     ? getPipelineStatus({
+        boundariesStatus: form.boundariesStatus,
+        dataStatus: deriveDataStatus(form),
         legalEntitySetup: form.legalEntitySetup,
-        dataStatus: form.dataStatus,
         fieldRequested: form.fieldRequested,
-        qaqcNpks: form.qaqcNpks,
-        qaqcFlags: form.qaqcFlags,
+        qaqc: form.qaqc,
         fieldConfirmed: form.fieldConfirmed,
         evidencing: form.evidencing,
         ecc: form.ecc,
-        eccLink: form.eccLink,
         w8Type: (form.w8Type || null) as never,
         w8InCropForce: form.w8InCropForce,
         w8MatchesLegalEntity: form.w8MatchesLegalEntity,
         contractStatus: form.contractStatus,
         contractApprovedInCropForce: form.contractApprovedInCropForce,
         bankDetails: form.bankDetails,
-        fields: form.fields ? Number(form.fields) : null,
-        tCO2e: form.tCO2e ? Number(form.tCO2e) : null,
-        deliveredAcres: form.deliveredAcres ? Number(form.deliveredAcres) : null,
-        deliveredHectares: form.deliveredHectares
-          ? Number(form.deliveredHectares)
-          : null,
-        amount: form.amount ? Number(form.amount) : null,
-        paymentDone: form.paymentDone,
       })
     : null;
 
@@ -252,6 +290,14 @@ export function ClientDetail({
           <Button variant="outline" onClick={() => setEditOpen(true)}>
             <Pencil className="h-4 w-4" /> Edit identity
           </Button>
+          <Button
+            variant="outline"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={onDeleteGrower}
+            disabled={pending}
+          >
+            <Trash2 className="h-4 w-4" /> Delete
+          </Button>
         </div>
       </div>
 
@@ -286,211 +332,124 @@ export function ClientDetail({
         </Card>
       ) : (
         <>
-          {/* Pipeline stepper */}
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-base">
-                Execution pipeline — {activeSeasonLabel}
-              </CardTitle>
-              <Badge variant={status?.isComplete ? "success" : "secondary"}>
-                {status?.isComplete
-                  ? "Complete"
-                  : `Current: ${status?.currentStage}`}
-              </Badge>
-            </CardHeader>
-            <CardContent>
-              <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {PIPELINE_STAGES.map((stage, i) => {
-                  const done = status?.completed[i];
-                  const current = status?.stageIndex === i;
-                  return (
-                    <li
-                      key={stage.key}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
-                        done && "border-success/40 bg-success/5",
-                        current && "border-primary bg-primary/5 font-medium",
-                      )}
-                    >
-                      {done ? (
-                        <Check className="h-4 w-4 shrink-0 text-success" />
-                      ) : current ? (
-                        <Dot className="h-4 w-4 shrink-0 text-primary" />
-                      ) : (
-                        <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className="text-muted-foreground">
-                        {i + 1}.
-                      </span>
-                      <span className={cn(done && "text-foreground")}>
-                        {stage.label}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
-            </CardContent>
-          </Card>
-
-          {/* Editable sections */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Section title="Enrollment">
-              <MultiSelectField
-                label="Crops (this season)"
-                selected={form.crops}
-                onChange={(v) => set("crops", v)}
-                options={CROP_OPTIONS}
-              />
-              <LinkedAreaFields
-                label="Enrolled area"
-                acres={form.enrolledAcres}
-                hectares={form.enrolledHectares}
-                onAcres={(v) => set("enrolledAcres", v)}
-                onHectares={(v) => set("enrolledHectares", v)}
-              />
-            </Section>
-
-            <Section title="Data & QA/QC">
-              <CheckboxField
-                label="Legal entity setup"
-                checked={form.legalEntitySetup}
-                onChange={(v) => set("legalEntitySetup", v)}
-              />
-              <SelectField
-                label="Data status"
-                value={form.dataStatus}
-                onChange={(v) => set("dataStatus", v as never)}
-                options={DATA_STATUS_OPTIONS}
-              />
-              <CheckboxField
-                label="Field requested"
-                checked={form.fieldRequested}
-                onChange={(v) => set("fieldRequested", v)}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <SelectField
-                  label="NPKS fix"
-                  value={form.qaqcNpks}
-                  onChange={(v) => set("qaqcNpks", v as never)}
-                  options={QAQC_NPKS_OPTIONS}
+          <div className="grid items-start gap-6 lg:grid-cols-3">
+            {/* Pipeline stepper with inline controls */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-base">
+                    Execution pipeline — {activeSeasonLabel}
+                  </CardTitle>
+                  <Badge variant={status?.isComplete ? "success" : "secondary"}>
+                    {status?.isComplete
+                      ? "Complete"
+                      : `Current: ${status?.currentStageShort}`}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-3 pt-1">
+                  <Progress
+                    value={(status?.percentComplete ?? 0) * 100}
+                    className="h-2"
+                    indicatorClassName={
+                      status?.isComplete ? "bg-success" : undefined
+                    }
+                  />
+                  <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                    {status?.stageIndex ?? 0} / {PIPELINE_STAGES.length} steps
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <PipelineStepper
+                  form={form}
+                  set={set}
+                  status={status}
+                  prevSeason={prevSeason}
                 />
-                <SelectField
-                  label="Flags"
-                  value={form.qaqcFlags}
-                  onChange={(v) => set("qaqcFlags", v as never)}
-                  options={QAQC_FLAGS_OPTIONS}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-6">
+              <Section title="Enrollment">
+                <MultiSelectField
+                  label="Crops (this season)"
+                  selected={form.crops}
+                  onChange={(v) => set("crops", v)}
+                  options={CROP_OPTIONS}
                 />
-              </div>
-              <CheckboxField
-                label="Field confirmed"
-                checked={form.fieldConfirmed}
-                onChange={(v) => set("fieldConfirmed", v)}
-              />
-            </Section>
+                <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                  Enrolled area:{" "}
+                  <strong>{form.enrolledHectares || "0"} ha</strong> (summed
+                  from the crop × state grid below)
+                </div>
+              </Section>
 
-            <Section title="Evidence">
-              <SelectField
-                label="Evidencing"
-                value={form.evidencing}
-                onChange={(v) => set("evidencing", v as never)}
-                options={EVIDENCING_OPTIONS}
-              />
-              <SelectField
-                label="ECC status"
-                value={form.ecc}
-                onChange={(v) => set("ecc", v as never)}
-                options={ECC_STATUS_OPTIONS}
-              />
-              <TextField
-                label="ECC link"
-                value={form.eccLink}
-                onChange={(v) => set("eccLink", v)}
-                placeholder="https://…"
-              />
-            </Section>
-
-            <Section title="W-8, Contract & Bank">
-              <SelectField
-                label="W-8 type"
-                value={form.w8Type || undefined}
-                onChange={(v) => set("w8Type", v as never)}
-                options={W8_TYPE_OPTIONS}
-                includeEmpty
-                emptyLabel="Not set"
-              />
-              <CheckboxField
-                label="W-8 in CropForce"
-                checked={form.w8InCropForce}
-                onChange={(v) => set("w8InCropForce", v)}
-              />
-              <CheckboxField
-                label="W-8 matches legal entity (contract ↔ W-8 ↔ legal entity)"
-                checked={form.w8MatchesLegalEntity}
-                onChange={(v) => set("w8MatchesLegalEntity", v)}
-              />
-              <SelectField
-                label="Contract status"
-                value={form.contractStatus}
-                onChange={(v) => set("contractStatus", v as never)}
-                options={CONTRACT_STATUS_OPTIONS}
-              />
-              <CheckboxField
-                label="Contract approved in CropForce"
-                checked={form.contractApprovedInCropForce}
-                onChange={(v) => set("contractApprovedInCropForce", v)}
-              />
-              <CheckboxField
-                label="Bank details on file"
-                checked={form.bankDetails}
-                onChange={(v) => set("bankDetails", v)}
-              />
-            </Section>
-
-            <Section title="Outcomes">
-              <div className="grid grid-cols-2 gap-4">
+              <Section
+                title="Outcomes — as contracted"
+                description="What was agreed in the contracts."
+              >
+                <div className="grid grid-cols-2 gap-4">
+                  <NumberField
+                    label="Fields"
+                    value={form.fields}
+                    onChange={(v) => set("fields", v)}
+                  />
+                  <NumberField
+                    label="tCO₂e"
+                    value={form.tCO2e}
+                    onChange={(v) => set("tCO2e", v)}
+                  />
+                </div>
+                <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                  Delivered area:{" "}
+                  <strong>
+                    {status?.isComplete
+                      ? `${form.enrolledHectares || "0"} ha`
+                      : "0 ha"}
+                  </strong>{" "}
+                  — {status?.isComplete
+                    ? "pipeline complete, so the enrolled area counts as delivered."
+                    : "counts once the execution pipeline is complete."}
+                </div>
                 <NumberField
-                  label="Fields"
-                  value={form.fields}
-                  onChange={(v) => set("fields", v)}
+                  label="Amount (grower payment, USD)"
+                  value={form.amount}
+                  onChange={(v) => set("amount", v)}
                 />
-                <NumberField
-                  label="tCO₂e"
-                  value={form.tCO2e}
-                  onChange={(v) => set("tCO2e", v)}
+                <CheckboxField
+                  label="Payment done"
+                  checked={form.paymentDone}
+                  onChange={(v) => set("paymentDone", v)}
                 />
-              </div>
-              <LinkedAreaFields
-                label="Delivered area"
-                acres={form.deliveredAcres}
-                hectares={form.deliveredHectares}
-                onAcres={(v) => set("deliveredAcres", v)}
-                onHectares={(v) => set("deliveredHectares", v)}
-              />
-              <NumberField
-                label="Amount (grower payment, USD)"
-                value={form.amount}
-                onChange={(v) => set("amount", v)}
-              />
-              <CheckboxField
-                label="Payment done"
-                checked={form.paymentDone}
-                onChange={(v) => set("paymentDone", v)}
-              />
-            </Section>
+              </Section>
 
-            <Section title="Notes">
-              <TextAreaField
-                label="Comments"
-                value={form.comments}
-                onChange={(v) => set("comments", v)}
-              />
-              {carriedForwardNote && (
-                <p className="text-xs text-muted-foreground">
-                  {carriedForwardNote}
-                </p>
-              )}
-            </Section>
+              <Section title="Notes">
+                <TextAreaField
+                  label="Comments"
+                  value={form.comments}
+                  onChange={(v) => set("comments", v)}
+                />
+                {carriedForwardNote && (
+                  <p className="text-xs text-muted-foreground">
+                    {carriedForwardNote}
+                  </p>
+                )}
+              </Section>
+            </div>
           </div>
+
+          {activeSeasonId && record && (
+            <AreaByCropState
+              clientSeasonId={record.id}
+              crops={form.crops as Crop[]}
+              regions={clientRegions}
+              initialAreas={areas}
+              onSaved={({ acres, hectares }) => {
+                set("enrolledAcres", acres ? String(acres) : "");
+                set("enrolledHectares", hectares ? String(hectares) : "");
+              }}
+            />
+          )}
 
           <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t bg-background/95 py-3 backdrop-blur">
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -517,6 +476,307 @@ export function ClientDetail({
   );
 }
 
+/**
+ * Vertical stepper: one row per pipeline stage, in order, with that stage's
+ * controls inline. The current stage is expanded by default; any stage can be
+ * opened or collapsed by clicking its header.
+ */
+function PipelineStepper({
+  form,
+  set,
+  status,
+  prevSeason,
+}: {
+  form: FormState;
+  set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+  status: ReturnType<typeof getPipelineStatus> | null;
+  prevSeason: PrevSeasonInfo | null;
+}) {
+  // Manual open/close overrides; stages without an override follow "is current".
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
+  function stageControls(key: string) {
+    switch (key) {
+      case "boundaries":
+        return (
+          <SelectField
+            label="Boundaries upload"
+            value={form.boundariesStatus}
+            onChange={(v) => set("boundariesStatus", v as never)}
+            options={DATA_STATUS_OPTIONS}
+          />
+        );
+      case "dataUpload":
+        return <PracticesEditor form={form} set={set} />;
+      case "legalEntitySetup":
+        return (
+          <CheckboxField
+            label="Legal entity setup complete"
+            checked={form.legalEntitySetup}
+            onChange={(v) => set("legalEntitySetup", v)}
+          />
+        );
+      case "requested":
+        return (
+          <CheckboxField
+            label="Requested"
+            checked={form.fieldRequested}
+            onChange={(v) => set("fieldRequested", v)}
+          />
+        );
+      case "qaqc":
+        return (
+          <SelectField
+            label="QA/QC status"
+            value={form.qaqc}
+            onChange={(v) => set("qaqc", v as never)}
+            options={QAQC_STATUS_OPTIONS}
+          />
+        );
+      case "evidencing":
+        return (
+          <SelectField
+            label="Evidencing"
+            value={form.evidencing}
+            onChange={(v) => set("evidencing", v as never)}
+            options={EVIDENCING_OPTIONS}
+          />
+        );
+      case "ecc":
+        return (
+          <>
+            <SelectField
+              label="ECC status"
+              value={form.ecc}
+              onChange={(v) => set("ecc", v as never)}
+              options={ECC_STATUS_OPTIONS}
+            />
+            <TextField
+              label="ECC link"
+              value={form.eccLink}
+              onChange={(v) => set("eccLink", v)}
+              placeholder="https://…"
+            />
+          </>
+        );
+      case "confirmed":
+        return (
+          <CheckboxField
+            label="Confirmed"
+            checked={form.fieldConfirmed}
+            onChange={(v) => set("fieldConfirmed", v)}
+          />
+        );
+      case "w8":
+        return (
+          <>
+            {prevSeason?.hadW8 && !form.w8Type && (
+              <PrevHint
+                what="A W-8"
+                seasonLabel={prevSeason.label}
+              />
+            )}
+            <SelectField
+              label="W-8 type"
+              value={form.w8Type || undefined}
+              onChange={(v) => set("w8Type", v as never)}
+              options={W8_TYPE_OPTIONS}
+              includeEmpty
+              emptyLabel="Not set"
+            />
+            <CheckboxField
+              label="W-8 in CropForce"
+              checked={form.w8InCropForce}
+              onChange={(v) => set("w8InCropForce", v)}
+            />
+            <CheckboxField
+              label="W-8 matches legal entity (contract ↔ W-8 ↔ legal entity)"
+              checked={form.w8MatchesLegalEntity}
+              onChange={(v) => set("w8MatchesLegalEntity", v)}
+            />
+          </>
+        );
+      case "contractBank":
+        return (
+          <>
+            {prevSeason?.contractSigned &&
+              form.contractStatus !== "SIGNED" && (
+                <PrevHint
+                  what="A signed contract"
+                  seasonLabel={prevSeason.label}
+                />
+              )}
+            {prevSeason?.bankDetails && !form.bankDetails && (
+              <PrevHint
+                what="Bank details"
+                seasonLabel={prevSeason.label}
+              />
+            )}
+            <SelectField
+              label="Contract status"
+              value={form.contractStatus}
+              onChange={(v) => set("contractStatus", v as never)}
+              options={CONTRACT_STATUS_OPTIONS}
+            />
+            <CheckboxField
+              label="Contract approved in CropForce"
+              checked={form.contractApprovedInCropForce}
+              onChange={(v) => set("contractApprovedInCropForce", v)}
+            />
+            <CheckboxField
+              label="Bank details on file"
+              checked={form.bankDetails}
+              onChange={(v) => set("bankDetails", v)}
+            />
+          </>
+        );
+      default:
+        return null;
+    }
+  }
+
+  return (
+    <ol className="space-y-1">
+      {PIPELINE_STAGES.map((stage, i) => {
+        const done = status?.completed[i] ?? false;
+        const current = status?.stageIndex === i;
+        const open = overrides[stage.key] ?? current;
+        return (
+          <li
+            key={stage.key}
+            className={cn(
+              "rounded-lg border transition-colors",
+              done && "border-success/40 bg-success/5",
+              current && "border-primary bg-primary/5",
+              !done && !current && "border-border",
+            )}
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
+              onClick={() =>
+                setOverrides((o) => ({ ...o, [stage.key]: !open }))
+              }
+            >
+              <span
+                className={cn(
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium",
+                  done
+                    ? "border-success bg-success text-success-foreground"
+                    : current
+                      ? "border-primary text-primary"
+                      : "border-muted-foreground/40 text-muted-foreground",
+                )}
+              >
+                {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+              </span>
+              <span
+                className={cn(
+                  "flex-1 text-sm",
+                  current && "font-medium",
+                  !done && !current && "text-muted-foreground",
+                )}
+              >
+                {stage.shortLabel}
+              </span>
+              {current && !done && (
+                <Badge variant="secondary" className="text-[10px]">
+                  Current
+                </Badge>
+              )}
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                  open && "rotate-180",
+                )}
+              />
+            </button>
+            {open && (
+              <div className="space-y-3 border-t px-3 py-3 pl-12">
+                {stageControls(stage.key)}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * Data milestones: one row per management practice. The Data pipeline step is
+ * complete when every applicable (non-N/A) practice is Done, so this editor
+ * shows the running count as you go.
+ */
+function PracticesEditor({
+  form,
+  set,
+}: {
+  form: FormState;
+  set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+}) {
+  const progress = getPracticeProgress(form);
+  const complete = progress.done === progress.applicable;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Update and confirm management practices. Mark anything that doesn’t
+          apply as N/A — it won’t block the Data step.
+        </p>
+        <Badge variant={complete ? "success" : "muted"}>
+          {progress.done}/{progress.applicable} done
+        </Badge>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {PRACTICES.map((p) => (
+          <div
+            key={p.key}
+            className={cn(
+              "flex items-center justify-between gap-2 rounded-md border px-3 py-1.5",
+              form[p.key] === "DONE" && "border-success/40 bg-success/5",
+              form[p.key] === "N_A" && "opacity-60",
+            )}
+          >
+            <span className="text-sm">{p.label}</span>
+            <Select
+              value={form[p.key]}
+              onValueChange={(v) => set(p.key, v as never)}
+            >
+              <SelectTrigger className="h-8 w-[130px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRACTICE_STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** "On file last season, not yet this season" reminder inside a stage. */
+function PrevHint({
+  what,
+  seasonLabel,
+}: {
+  what: string;
+  seasonLabel: string;
+}) {
+  return (
+    <p className="text-xs text-amber-600 dark:text-amber-500">
+      {what} was on file for {seasonLabel} — collect it again for this season.
+    </p>
+  );
+}
+
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -530,15 +790,18 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function Section({
   title,
+  description,
   children,
 }: {
   title: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="space-y-4">{children}</CardContent>
     </Card>

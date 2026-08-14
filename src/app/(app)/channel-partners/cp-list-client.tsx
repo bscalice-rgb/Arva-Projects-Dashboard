@@ -248,12 +248,19 @@ export function CpListClient({
               {filtered.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">
-                    <Link
-                      href={`/channel-partners/${r.id}`}
-                      className="hover:underline"
-                    >
-                      {r.entityName}
-                    </Link>
+                    <span className="flex items-center gap-2">
+                      <Link
+                        href={`/channel-partners/${r.id}`}
+                        className="hover:underline"
+                      >
+                        {r.entityName}
+                      </Link>
+                      {!r.hasSeason && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Not in {seasonLabel}
+                        </Badge>
+                      )}
+                    </span>
                     {r.mainContact && (
                       <div className="text-xs text-muted-foreground">
                         {r.mainContact}

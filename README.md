@@ -125,10 +125,15 @@ Currency is **USD only**. There is **no spreadsheet import** — data is entered
    provisions the database and injects `DATABASE_URL` automatically.
 3. Set the remaining env vars in **Project Settings → Environment Variables**:
    `AUTH_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` (or `ADMIN_PASSWORD_HASH`).
-4. Deploy. The default build command (`prisma generate && prisma migrate deploy &&
-   next build`) creates the database tables automatically on each deploy — no build-command
-   override needed. (If the very first deploy ran before the database was attached, just
-   click **Redeploy** once the env vars are in place.)
+4. Deploy. The default build command (`prisma generate && node scripts/migrate-deploy.mjs
+   && next build`) creates the database tables automatically on each deploy — no
+   build-command override needed. (If the very first deploy ran before the database was
+   attached, just click **Redeploy** once the env vars are in place.)
+
+   Migrations run through `scripts/migrate-deploy.mjs`, which prefers the unpooled
+   connection string the Neon integration injects (`DATABASE_URL_UNPOOLED`), extends the
+   connect timeout, and retries — this avoids `P1002` timeouts caused by Neon's pooled
+   endpoint or a cold-started compute.
 5. After the first successful deploy, optionally run the seed once against the production
    database from your machine:
 

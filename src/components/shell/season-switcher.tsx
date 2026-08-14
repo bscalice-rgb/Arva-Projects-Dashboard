@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Season } from "@prisma/client";
-import { CalendarRange } from "lucide-react";
+import { CalendarRange, Loader2 } from "lucide-react";
 
 export function SeasonSwitcher({
   seasons,
@@ -27,7 +27,11 @@ export function SeasonSwitcher({
 
   return (
     <div className="flex items-center gap-2">
-      <CalendarRange className="h-4 w-4 text-muted-foreground" />
+      {pending ? (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : (
+        <CalendarRange className="h-4 w-4 text-muted-foreground" />
+      )}
       <Select
         value={selectedId ?? undefined}
         onValueChange={(value) => {

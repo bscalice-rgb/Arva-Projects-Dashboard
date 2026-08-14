@@ -65,3 +65,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print / PDF export (partner report). */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  /* Keep brand colors, progress bars and badges when printing. */
+  .print-exact {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

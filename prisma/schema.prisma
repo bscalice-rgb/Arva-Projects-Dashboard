@@ -64,15 +64,19 @@ enum DataStatus {
   DONE
 }
 
-enum QaqcNpks {
-  NOT_DONE
+enum QaqcStatus {
+  NOT_STARTED
+  IN_PROGRESS
   DONE
 }
 
-enum QaqcFlags {
-  OPEN
-  RESOLVED
-  NONE
+// Per management-practice data milestone. N_A marks a practice that doesn't
+// apply to this grower/season, so it never blocks the Data step.
+enum PracticeStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+  N_A
 }
 
 enum Evidencing {
@@ -121,6 +125,7 @@ model User {
   channelPartners ChannelPartner[]
   clients         Client[]
   mills           Mill[]
+  millGroups      MillGroup[]
   supplySheds     SupplyShed[]
   regions         Region[]
 }
@@ -136,9 +141,11 @@ model Region {
   userId    String?
   createdAt DateTime @default(now())
 
-  user        User?        @relation(fields: [userId], references: [id])
-  clients     Client[]     @relation("ClientRegions")
-  supplySheds SupplyShed[]
+  user              User?              @relation(fields: [userId], references: [id])
+  clients           Client[]           @relation("ClientRegions")
+  supplySheds       SupplyShed[]
+  mills             Mill[]
+  clientSeasonAreas ClientSeasonArea[]
 
   @@unique([userId, country, name])
   @@index([userId])
@@ -221,11 +228,12 @@ model Client {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  orgNode OrgNode        @relation(fields: [orgNodeId], references: [id], onDelete: Cascade)
-  mill    Mill?          @relation(fields: [millId], references: [id])
-  user    User?          @relation(fields: [userId], references: [id])
-  regions Region[]       @relation("ClientRegions")
-  seasons ClientSeason[]
+  orgNode     OrgNode        @relation(fields: [orgNodeId], references: [id], onDelete: Cascade)
+  mill        Mill?          @relation(fields: [millId], references: [id])
+  user        User?          @relation(fields: [userId], references: [id])
+  regions     Region[]       @relation("ClientRegions")
+  seasons     ClientSeason[]
+  supplySheds SupplyShed[]
 
   @@index([orgNodeId])
   @@index([millId])
@@ -233,23 +241,44 @@ model Client {
 }
 
 // ---------------------------------------------------------------------------
-// Identity: Mill / Refinery (sugarcane & palm processing)
+// Identity: Mill Group (a company that owns multiple mills / refineries)
+// and Mill / Refinery (sugarcane & palm processing). Group > Mill/Refinery.
 // ---------------------------------------------------------------------------
+
+model MillGroup {
+  id        String   @id @default(cuid())
+  name      String
+  country   Country?
+  notes     String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User?  @relation(fields: [userId], references: [id])
+  mills Mill[]
+
+  @@index([userId])
+}
 
 model Mill {
   id        String   @id @default(cuid())
   name      String
   crop      Crop
   country   Country
-  region    String?
+  regionId  String?
   notes     String?
+  groupId   String?
   userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User?    @relation(fields: [userId], references: [id])
+  region  Region?    @relation(fields: [regionId], references: [id])
+  group   MillGroup? @relation(fields: [groupId], references: [id])
+  user    User?      @relation(fields: [userId], references: [id])
   clients Client[]
 
+  @@index([regionId])
+  @@index([groupId])
   @@index([userId])
 }
 
@@ -312,11 +341,13 @@ model ClientSeason {
   enrolledAcres    Float?
 
   // ---- Execution pipeline flags (order lives in src/lib/pipeline.ts) ----
-  legalEntitySetup            Boolean        @default(false)
+  boundariesStatus            DataStatus     @default(NOT_STARTED)
+  // Derived rollup of the management-practice milestones below: DONE once every
+  // applicable practice is DONE. Recomputed server-side on save.
   dataStatus                  DataStatus     @default(NOT_STARTED)
+  legalEntitySetup            Boolean        @default(false)
   fieldRequested              Boolean        @default(false)
-  qaqcNpks                    QaqcNpks       @default(NOT_DONE)
-  qaqcFlags                   QaqcFlags      @default(OPEN)
+  qaqc                        QaqcStatus     @default(NOT_STARTED)
   fieldConfirmed              Boolean        @default(false)
   evidencing                  Evidencing     @default(NOT_ATTACHED)
   ecc                         EccStatus      @default(NOT_STARTED)
@@ -328,11 +359,21 @@ model ClientSeason {
   contractApprovedInCropForce Boolean        @default(false)
   bankDetails                 Boolean        @default(false)
 
+  // ---- Data milestones: management practices (order in src/lib/practices.ts) ----
+  practicePlanting           PracticeStatus @default(NOT_STARTED)
+  practiceHarvest            PracticeStatus @default(NOT_STARTED)
+  practiceTillage            PracticeStatus @default(NOT_STARTED)
+  practiceFertilizer         PracticeStatus @default(NOT_STARTED)
+  practiceLiming             PracticeStatus @default(NOT_STARTED)
+  practiceCropProtection     PracticeStatus @default(NOT_STARTED)
+  practiceIrrigation         PracticeStatus @default(NOT_STARTED)
+  practiceCoverCropping      PracticeStatus @default(NOT_STARTED)
+  practiceSoilSampling       PracticeStatus @default(NOT_STARTED)
+  practiceAggregation        PracticeStatus @default(NOT_STARTED)
+
   // ---- Outcomes ----
   fields            Int?
   tCO2e             Float?
-  deliveredAcres    Float?
-  deliveredHectares Float?
   amount            Float? // grower payment, USD
   paymentDone       Boolean @default(false)
 
@@ -346,12 +387,41 @@ model ClientSeason {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  client Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  season Season             @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  areas  ClientSeasonArea[]
 
   @@unique([clientId, seasonId])
   @@index([seasonId])
   @@index([clientId])
+}
+
+// ---------------------------------------------------------------------------
+// Per-season, per-region area — a grower can have area in more than one state.
+// The ClientSeason enrolled/delivered totals are kept as the sum of these rows
+// when a grower uses the per-state breakdown.
+// ---------------------------------------------------------------------------
+
+// The atomic unit of grower area: one row per crop x state. Every area
+// roll-up (by crop, by state, by crop+state, by grower) is a sum over these.
+// Delivered area is NOT stored — it is derived: a grower's area counts as
+// delivered once its execution pipeline is complete (see src/lib/area.ts).
+model ClientSeasonArea {
+  id               String   @id @default(cuid())
+  clientSeasonId   String
+  crop             Crop
+  regionId         String
+  enrolledHectares Float?
+  enrolledAcres    Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  clientSeason ClientSeason @relation(fields: [clientSeasonId], references: [id], onDelete: Cascade)
+  region       Region       @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([clientSeasonId, crop, regionId])
+  @@index([clientSeasonId])
+  @@index([regionId])
 }
 
 // ---------------------------------------------------------------------------
@@ -364,6 +434,8 @@ model SupplyShed {
   seasonId           String
   country            Country
   channelPartnerId   String?
+  // For Direct (no CP) allotments: optionally source straight from one grower.
+  clientId           String?
   crop               Crop
   regionId           String?
   acresNeeded        Float    @default(0)
@@ -375,10 +447,12 @@ model SupplyShed {
 
   season         Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   channelPartner ChannelPartner? @relation(fields: [channelPartnerId], references: [id])
+  client         Client?         @relation(fields: [clientId], references: [id])
   region         Region?         @relation(fields: [regionId], references: [id])
   user           User?           @relation(fields: [userId], references: [id])
 
   @@index([seasonId])
   @@index([channelPartnerId])
+  @@index([clientId])
   @@index([regionId])
 }

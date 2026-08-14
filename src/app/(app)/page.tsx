@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
 import { getPipelineStatus } from "@/lib/pipeline";
-import { computeShedLoaded } from "@/lib/supply-shed";
+import { computeShedLoaded, deriveAreaUnits } from "@/lib/supply-shed";
+import { deliveredFor } from "@/lib/area";
 import { PageHeader } from "@/components/page-header";
 import { NoSeason } from "@/components/no-season";
 import { DashboardClient } from "./dashboard-client";
@@ -31,6 +32,14 @@ export default async function DashboardPage() {
     prisma.clientSeason.findMany({
       where: { seasonId: season.id, client: { userId } },
       include: {
+        areas: {
+          select: {
+            crop: true,
+            regionId: true,
+            enrolledAcres: true,
+            enrolledHectares: true,
+          },
+        },
         client: {
           select: {
             id: true,
@@ -61,6 +70,7 @@ export default async function DashboardPage() {
       select: {
         id: true,
         channelPartnerId: true,
+        clientId: true,
         crop: true,
         country: true,
         regionId: true,
@@ -87,8 +97,7 @@ export default async function DashboardPage() {
       currentStageShort: status.currentStageShort,
       enrolledAcres: cs.enrolledAcres ?? 0,
       enrolledHectares: cs.enrolledHectares ?? 0,
-      deliveredAcres: cs.deliveredAcres ?? 0,
-      deliveredHectares: cs.deliveredHectares ?? 0,
+      ...deliveredFor(cs),
       tCO2e: cs.tCO2e ?? 0,
       amount: cs.amount ?? 0,
       paymentDone: cs.paymentDone,
@@ -115,18 +124,8 @@ export default async function DashboardPage() {
     };
   });
 
-  // Allotment loaded auto-rolled from delivered grower area.
-  const csForShed = clientSeasons.map((cs) => ({
-    crops: cs.crops,
-    deliveredAcres: cs.deliveredAcres,
-    deliveredHectares: cs.deliveredHectares,
-    client: {
-      country: cs.client.country,
-      regionIds: cs.client.regions.map((r) => r.id),
-      orgNode: { channelPartnerId: cs.client.orgNode.channelPartnerId },
-    },
-  }));
-  const loaded = computeShedLoaded(sheds, csForShed);
+  // Allotment loaded auto-rolled from grower area, attributed per state.
+  const loaded = computeShedLoaded(sheds, deriveAreaUnits(clientSeasons));
 
   const dashSheds: DashShed[] = sheds.map((s) => {
     const l = loaded.get(s.id) ?? { loadedAcres: 0, loadedHectares: 0 };

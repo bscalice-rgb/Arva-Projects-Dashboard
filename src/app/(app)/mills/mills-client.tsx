@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Factory, Plus, Pencil, Trash2 } from "lucide-react";
+import { Factory, Building2, Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -29,37 +30,79 @@ import {
   COUNTRY_LABELS,
 } from "@/lib/enums";
 import type { Crop, Country } from "@prisma/client";
-import { createMill, updateMill, deleteMill } from "./actions";
+import {
+  createMill,
+  updateMill,
+  deleteMill,
+  createMillGroup,
+  updateMillGroup,
+  deleteMillGroup,
+} from "./actions";
 
 type MillRow = {
   id: string;
   name: string;
   crop: Crop;
   country: Country;
-  region: string | null;
+  regionId: string | null;
+  regionName: string | null;
   notes: string | null;
+  groupId: string | null;
   clientCount: number;
 };
 
-const empty = {
+type RegionOption = { id: string; name: string; country: Country };
+
+type GroupRow = {
+  id: string;
+  name: string;
+  country: Country | null;
+  notes: string | null;
+  millCount: number;
+};
+
+const emptyMill = {
   name: "",
   crop: "SUGARCANE" as Crop,
   country: "" as Country | "",
-  region: "",
+  regionId: "",
+  groupId: "",
   notes: "",
 };
 
-export function MillsClient({ mills }: { mills: MillRow[] }) {
+const emptyGroup = {
+  name: "",
+  country: "" as Country | "",
+  notes: "",
+};
+
+export function MillsClient({
+  mills,
+  groups,
+  regions,
+}: {
+  mills: MillRow[];
+  groups: GroupRow[];
+  regions: RegionOption[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  // Mill dialog state
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(emptyMill);
   const [error, setError] = useState<string | null>(null);
 
-  function openCreate() {
+  // Group dialog state
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupForm, setGroupForm] = useState(emptyGroup);
+  const [groupError, setGroupError] = useState<string | null>(null);
+
+  function openCreate(groupId?: string) {
     setEditingId(null);
-    setForm(empty);
+    setForm({ ...emptyMill, groupId: groupId ?? "" });
     setError(null);
     setOpen(true);
   }
@@ -69,7 +112,8 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
       name: row.name,
       crop: row.crop,
       country: row.country,
-      region: row.region ?? "",
+      regionId: row.regionId ?? "",
+      groupId: row.groupId ?? "",
       notes: row.notes ?? "",
     });
     setError(null);
@@ -82,7 +126,8 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
         name: form.name,
         crop: form.crop,
         country: form.country || undefined,
-        region: form.region || null,
+        regionId: form.regionId || null,
+        groupId: form.groupId || null,
         notes: form.notes || null,
       };
       const res = editingId
@@ -102,21 +147,113 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
     });
   }
 
+  function openCreateGroup() {
+    setEditingGroupId(null);
+    setGroupForm(emptyGroup);
+    setGroupError(null);
+    setGroupOpen(true);
+  }
+  function openEditGroup(g: GroupRow) {
+    setEditingGroupId(g.id);
+    setGroupForm({
+      name: g.name,
+      country: g.country ?? "",
+      notes: g.notes ?? "",
+    });
+    setGroupError(null);
+    setGroupOpen(true);
+  }
+  function submitGroup() {
+    setGroupError(null);
+    startTransition(async () => {
+      const payload = {
+        name: groupForm.name,
+        country: groupForm.country || null,
+        notes: groupForm.notes || null,
+      };
+      const res = editingGroupId
+        ? await updateMillGroup(editingGroupId, payload)
+        : await createMillGroup(payload);
+      if (!res.ok) return setGroupError(res.error);
+      setGroupOpen(false);
+      router.refresh();
+    });
+  }
+  function onDeleteGroup(g: GroupRow) {
+    if (
+      !confirm(
+        `Delete group "${g.name}"? Its mills are kept and become ungrouped.`,
+      )
+    )
+      return;
+    startTransition(async () => {
+      const res = await deleteMillGroup(g.id);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
+
+  // Group > Mill/Refinery hierarchy: groups (with their mills) first, then ungrouped.
+  const grouped = useMemo(() => {
+    const byGroup = new Map<string, MillRow[]>();
+    const ungrouped: MillRow[] = [];
+    for (const m of mills) {
+      if (m.groupId && groups.some((g) => g.id === m.groupId)) {
+        if (!byGroup.has(m.groupId)) byGroup.set(m.groupId, []);
+        byGroup.get(m.groupId)!.push(m);
+      } else {
+        ungrouped.push(m);
+      }
+    }
+    return { byGroup, ungrouped };
+  }, [mills, groups]);
+
+  const groupOptions = groups.map((g) => ({ value: g.id, label: g.name }));
+
+  function millRow(m: MillRow, indent: boolean) {
+    return (
+      <TableRow key={m.id}>
+        <TableCell className={indent ? "pl-10 font-medium" : "font-medium"}>
+          {m.name}
+        </TableCell>
+        <TableCell>{CROP_LABELS[m.crop]}</TableCell>
+        <TableCell>{COUNTRY_LABELS[m.country]}</TableCell>
+        <TableCell className="text-muted-foreground">
+          {m.regionName ?? "—"}
+        </TableCell>
+        <TableCell className="text-right">{m.clientCount}</TableCell>
+        <TableCell>
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon" onClick={() => openEdit(m)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => onDelete(m)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={openCreate}>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={openCreateGroup}>
+          <Building2 className="h-4 w-4" /> New Group
+        </Button>
+        <Button onClick={() => openCreate()}>
           <Plus className="h-4 w-4" /> New Mill / Refinery
         </Button>
       </div>
 
-      {mills.length === 0 ? (
+      {mills.length === 0 && groups.length === 0 ? (
         <EmptyState
           icon={Factory}
           title="No mills or refineries"
-          description="Add processing facilities for sugarcane and palm; link them to clients."
+          description="Add processing facilities for sugarcane and palm; organize them under groups when one company owns several."
           action={
-            <Button onClick={openCreate}>
+            <Button onClick={() => openCreate()}>
               <Plus className="h-4 w-4" /> New Mill / Refinery
             </Button>
           }
@@ -126,49 +263,86 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Group / Mill</TableHead>
                 <TableHead>Crop</TableHead>
                 <TableHead>Country</TableHead>
                 <TableHead>Region</TableHead>
                 <TableHead className="text-right">Clients</TableHead>
-                <TableHead className="w-[90px]" />
+                <TableHead className="w-[130px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mills.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell className="font-medium">{m.name}</TableCell>
-                  <TableCell>{CROP_LABELS[m.crop]}</TableCell>
-                  <TableCell>{COUNTRY_LABELS[m.country]}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {m.region ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right">{m.clientCount}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(m)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onDelete(m)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+              {groups.map((g) => (
+                <Fragment key={g.id}>
+                  <TableRow className="bg-muted/40">
+                    <TableCell className="font-semibold">
+                      <span className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        {g.name}
+                        <Badge variant="muted" className="text-[10px]">
+                          Group
+                        </Badge>
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {g.millCount} mill{g.millCount === 1 ? "" : "s"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {g.country ? COUNTRY_LABELS[g.country] : "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {g.notes ?? ""}
+                    </TableCell>
+                    <TableCell />
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Add mill to this group"
+                          onClick={() => openCreate(g.id)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditGroup(g)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onDeleteGroup(g)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  {(grouped.byGroup.get(g.id) ?? []).map((m) =>
+                    millRow(m, true),
+                  )}
+                </Fragment>
+              ))}
+              {grouped.ungrouped.length > 0 && groups.length > 0 && (
+                <TableRow className="bg-muted/40">
+                  <TableCell
+                    colSpan={6}
+                    className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                  >
+                    Independent (no group)
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
+              {grouped.ungrouped.map((m) => millRow(m, groups.length > 0))}
             </TableBody>
           </Table>
         </div>
       )}
 
+      {/* Mill dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
@@ -184,6 +358,15 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
               onChange={(v) => setForm((f) => ({ ...f, name: v }))}
             />
             <SelectField
+              label="Group (company owning multiple mills)"
+              value={form.groupId || undefined}
+              onChange={(v) => setForm((f) => ({ ...f, groupId: v }))}
+              options={groupOptions}
+              includeEmpty
+              emptyLabel="None — independent"
+              placeholder="None — independent"
+            />
+            <SelectField
               label="Crop"
               value={form.crop}
               onChange={(v) => setForm((f) => ({ ...f, crop: v as Crop }))}
@@ -195,15 +378,34 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
                 required
                 value={form.country || undefined}
                 onChange={(v) =>
-                  setForm((f) => ({ ...f, country: v as Country }))
+                  setForm((f) => ({
+                    ...f,
+                    country: v as Country,
+                    regionId: "", // regions depend on country
+                  }))
                 }
                 options={COUNTRY_OPTIONS}
               />
-              <TextField
-                label="Region / Province"
-                value={form.region}
-                onChange={(v) => setForm((f) => ({ ...f, region: v }))}
-              />
+              <div>
+                <SelectField
+                  label="Region / State"
+                  value={form.regionId || undefined}
+                  onChange={(v) => setForm((f) => ({ ...f, regionId: v }))}
+                  includeEmpty
+                  emptyLabel="None"
+                  placeholder={form.country ? "None" : "Pick a country first"}
+                  options={regions
+                    .filter((r) => r.country === form.country)
+                    .map((r) => ({ value: r.id, label: r.name }))}
+                />
+                {form.country &&
+                  regions.every((r) => r.country !== form.country) && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      No regions set up for this country yet — add them under
+                      Seasons → Countries & Regions.
+                    </p>
+                  )}
+              </div>
             </div>
             <TextAreaField
               label="Notes"
@@ -217,6 +419,55 @@ export function MillsClient({ mills }: { mills: MillRow[] }) {
               Cancel
             </Button>
             <Button onClick={submit} disabled={pending}>
+              {pending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Group dialog */}
+      <Dialog open={groupOpen} onOpenChange={setGroupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingGroupId ? "Edit Group" : "New Group"}
+            </DialogTitle>
+            <DialogDescription>
+              A company that owns multiple mills or refineries. Assign mills to
+              it from the mill form.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <TextField
+              label="Group / company name"
+              required
+              value={groupForm.name}
+              onChange={(v) => setGroupForm((f) => ({ ...f, name: v }))}
+            />
+            <SelectField
+              label="Country (optional)"
+              value={groupForm.country || undefined}
+              onChange={(v) =>
+                setGroupForm((f) => ({ ...f, country: v as Country }))
+              }
+              options={COUNTRY_OPTIONS}
+              includeEmpty
+              emptyLabel="Not set"
+            />
+            <TextAreaField
+              label="Notes"
+              value={groupForm.notes}
+              onChange={(v) => setGroupForm((f) => ({ ...f, notes: v }))}
+            />
+            {groupError && (
+              <p className="text-sm text-destructive">{groupError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGroupOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitGroup} disabled={pending}>
               {pending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>

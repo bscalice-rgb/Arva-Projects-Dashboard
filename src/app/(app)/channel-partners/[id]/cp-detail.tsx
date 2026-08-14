@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -71,6 +71,13 @@ type ClientLine = {
   paymentDone: boolean;
 };
 
+type PrevCompliance = {
+  seasonLabel: string;
+  agreementSigned: boolean;
+  w8Provided: boolean;
+  bankDetails: boolean;
+};
+
 export function CpDetail({
   cpId,
   cpName,
@@ -79,6 +86,7 @@ export function CpDetail({
   seasonId,
   seasonLabel,
   cpSeason,
+  prevCompliance,
   agg,
   payees,
   clients,
@@ -99,6 +107,7 @@ export function CpDetail({
     paymentDone: boolean;
     agreementComments: string | null;
   } | null;
+  prevCompliance: PrevCompliance | null;
   agg: VolumeAgg;
   payees: RevenueSharePayee[];
   clients: ClientLine[];
@@ -111,7 +120,7 @@ export function CpDetail({
 
   if (!cpSeason) {
     return (
-      <Wrapper cpName={cpName} cpTypeLabel={cpTypeLabel} countryLabel={countryLabel}>
+      <Wrapper cpName={cpName} cpTypeLabel={cpTypeLabel} countryLabel={countryLabel} reportHref={`/report/cp/${cpId}?season=${seasonId}`}>
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
             <p className="text-sm text-muted-foreground">
@@ -137,11 +146,12 @@ export function CpDetail({
   const { payouts, total } = computePayouts(payees, agg.growerPayments);
 
   return (
-    <Wrapper cpName={cpName} cpTypeLabel={cpTypeLabel} countryLabel={countryLabel}>
+    <Wrapper cpName={cpName} cpTypeLabel={cpTypeLabel} countryLabel={countryLabel} reportHref={`/report/cp/${cpId}?season=${seasonId}`}>
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Compliance */}
         <ComplianceCard
           cpSeason={cpSeason}
+          prevCompliance={prevCompliance}
           seasonLabel={seasonLabel}
           onSaved={() => router.refresh()}
         />
@@ -273,26 +283,37 @@ function Wrapper({
   cpName,
   cpTypeLabel,
   countryLabel,
+  reportHref,
   children,
 }: {
   cpName: string;
   cpTypeLabel: string;
   countryLabel: string;
+  reportHref: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-6">
-      <div>
-        <Button variant="ghost" size="sm" asChild className="mb-1 -ml-2">
-          <Link href="/channel-partners">
-            <ArrowLeft className="h-4 w-4" /> Channel Partners
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Button variant="ghost" size="sm" asChild className="mb-1 -ml-2">
+            <Link href="/channel-partners">
+              <ArrowLeft className="h-4 w-4" /> Channel Partners
+            </Link>
+          </Button>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{cpName}</h1>
+            <Badge variant="secondary">{cpTypeLabel}</Badge>
+            <span className="text-sm text-muted-foreground">
+              {countryLabel}
+            </span>
+          </div>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href={reportHref} target="_blank">
+            <FileText className="h-4 w-4" /> Partner report
           </Link>
         </Button>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{cpName}</h1>
-          <Badge variant="secondary">{cpTypeLabel}</Badge>
-          <span className="text-sm text-muted-foreground">{countryLabel}</span>
-        </div>
       </div>
       {children}
     </div>
@@ -316,8 +337,27 @@ function Stat({
   );
 }
 
+/** "On file last season, not yet this season" reminder under a checkbox. */
+function PrevHint({
+  show,
+  seasonLabel,
+  what,
+}: {
+  show: boolean;
+  seasonLabel: string;
+  what: string;
+}) {
+  if (!show) return null;
+  return (
+    <p className="-mt-1 pl-6 text-xs text-amber-600 dark:text-amber-500">
+      {what} was on file for {seasonLabel} — collect it again for this season.
+    </p>
+  );
+}
+
 function ComplianceCard({
   cpSeason,
+  prevCompliance,
   seasonLabel,
   onSaved,
 }: {
@@ -329,6 +369,7 @@ function ComplianceCard({
     paymentDone: boolean;
     agreementComments: string | null;
   };
+  prevCompliance: PrevCompliance | null;
   seasonLabel: string;
   onSaved: () => void;
 }) {
@@ -353,15 +394,32 @@ function ComplianceCard({
           checked={form.agreementSigned}
           onChange={(v) => setForm((f) => ({ ...f, agreementSigned: v }))}
         />
+        <PrevHint
+          show={
+            !!prevCompliance?.agreementSigned && !form.agreementSigned
+          }
+          seasonLabel={prevCompliance?.seasonLabel ?? ""}
+          what="An agreement"
+        />
         <CheckboxField
           label="W-8 provided"
           checked={form.w8Provided}
           onChange={(v) => setForm((f) => ({ ...f, w8Provided: v }))}
         />
+        <PrevHint
+          show={!!prevCompliance?.w8Provided && !form.w8Provided}
+          seasonLabel={prevCompliance?.seasonLabel ?? ""}
+          what="A W-8"
+        />
         <CheckboxField
           label="Bank details"
           checked={form.bankDetails}
           onChange={(v) => setForm((f) => ({ ...f, bankDetails: v }))}
+        />
+        <PrevHint
+          show={!!prevCompliance?.bankDetails && !form.bankDetails}
+          seasonLabel={prevCompliance?.seasonLabel ?? ""}
+          what="Bank details"
         />
         <CheckboxField
           label="Payment done"

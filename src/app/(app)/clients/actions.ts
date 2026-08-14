@@ -11,8 +11,89 @@ import {
   clientSchema,
   clientSeasonEditableSchema,
   clientSeasonPatchSchema,
+  clientSeasonAreasSchema,
 } from "@/lib/validation";
 import { zodMessage, type ActionResult } from "@/lib/action-result";
+import {
+  deriveDataStatus,
+  PRACTICE_KEYS,
+  type PracticeKey,
+} from "@/lib/practices";
+
+/** Recompute a client-season's enrolled total from its crop x state area rows
+ *  (total = sum of rows). Delivered is derived, never stored. */
+async function syncTotalsFromAreas(clientSeasonId: string) {
+  const areas = await prisma.clientSeasonArea.findMany({
+    where: { clientSeasonId },
+  });
+  if (areas.length === 0) {
+    await prisma.clientSeason.update({
+      where: { id: clientSeasonId },
+      data: { enrolledAcres: null, enrolledHectares: null },
+    });
+    return;
+  }
+  const sum = (pick: (a: (typeof areas)[number]) => number | null) =>
+    areas.reduce((n, a) => n + (pick(a) ?? 0), 0);
+  await prisma.clientSeason.update({
+    where: { id: clientSeasonId },
+    data: {
+      enrolledAcres: sum((a) => a.enrolledAcres),
+      enrolledHectares: sum((a) => a.enrolledHectares),
+    },
+  });
+}
+
+/** Replace the per-state area breakdown for a client-season and re-sum totals. */
+export async function setClientSeasonAreas(
+  clientSeasonId: string,
+  input: unknown,
+): Promise<ActionResult> {
+  const parsed = clientSeasonAreasSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
+
+  // Keep only rows that carry at least one value.
+  const rows = parsed.data.filter(
+    (a) => a.enrolledAcres != null || a.enrolledHectares != null,
+  );
+
+  // Each crop x state may appear once — the stored rows are keyed on it.
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const key = `${r.crop}|${r.regionId}`;
+    if (seen.has(key)) {
+      return {
+        ok: false,
+        error: "The same crop + state appears more than once.",
+      };
+    }
+    seen.add(key);
+  }
+
+  const cs = await prisma.clientSeason.findUnique({
+    where: { id: clientSeasonId },
+    select: { clientId: true },
+  });
+  if (!cs) return { ok: false, error: "Season record not found." };
+
+  await prisma.$transaction([
+    prisma.clientSeasonArea.deleteMany({ where: { clientSeasonId } }),
+    ...(rows.length > 0
+      ? [
+          prisma.clientSeasonArea.createMany({
+            data: rows.map((a) => ({ ...a, clientSeasonId })),
+          }),
+        ]
+      : []),
+  ]);
+  await syncTotalsFromAreas(clientSeasonId);
+
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${cs.clientId}`);
+  revalidatePath("/allotments");
+  revalidatePath("/");
+  return { ok: true };
+}
 
 /** Create a Client identity, and optionally its record for the given season. */
 export async function createClient(
@@ -47,7 +128,13 @@ export async function createClient(
     await prisma.clientSeason.upsert({
       where: { clientId_seasonId: { clientId: client.id, seasonId } },
       update: {},
-      create: { clientId: client.id, seasonId, crops: d.defaultCrops },
+      create: {
+        clientId: client.id,
+        seasonId,
+        crops: d.defaultCrops,
+        enrolledAcres: d.enrolledAcres,
+        enrolledHectares: d.enrolledHectares,
+      },
     });
   }
 
@@ -101,9 +188,19 @@ export async function updateClient(
   return { ok: true };
 }
 
+/** Permanently delete a grower and all of its per-season records. */
 export async function deleteClient(id: string): Promise<ActionResult> {
+  const client = await prisma.client.findUnique({
+    where: { id },
+    select: { orgNodeId: true },
+  });
+  if (!client) return { ok: false, error: "Grower not found." };
   await prisma.client.delete({ where: { id } });
+  // If this was a direct grower with a dedicated node, remove the empty node.
+  await cleanupOrphanDirectOrgNode(client.orgNodeId);
   revalidatePath("/clients");
+  revalidatePath("/channel-partners");
+  revalidatePath("/");
   return { ok: true };
 }
 
@@ -139,9 +236,22 @@ export async function saveClientSeason(
 ): Promise<ActionResult> {
   const parsed = clientSeasonEditableSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
+
+  const data = { ...parsed.data };
+  // When crop x state area rows exist, the enrolled total is derived from them
+  // — don't let the whole-grower form overwrite the summed total.
+  const areaCount = await prisma.clientSeasonArea.count({
+    where: { clientSeasonId: id },
+  });
+  if (areaCount > 0) {
+    delete (data as Record<string, unknown>).enrolledAcres;
+    delete (data as Record<string, unknown>).enrolledHectares;
+  }
+
+  // Data step is a rollup of the management practices, never set by hand.
   const cs = await prisma.clientSeason.update({
     where: { id },
-    data: parsed.data,
+    data: { ...data, dataStatus: deriveDataStatus(data) },
   });
   revalidatePath("/clients");
   revalidatePath(`/clients/${cs.clientId}`);
@@ -157,9 +267,25 @@ export async function patchClientSeason(
 ): Promise<ActionResult> {
   const parsed = clientSeasonPatchSchema.safeParse(patch);
   if (!parsed.success) return { ok: false, error: zodMessage(parsed.error) };
+  const data: Record<string, unknown> = { ...parsed.data };
+
+  // A patch may touch only some practices — re-derive from the merged record.
+  if (PRACTICE_KEYS.some((k) => k in data)) {
+    const current = await prisma.clientSeason.findUnique({
+      where: { id },
+      select: Object.fromEntries(PRACTICE_KEYS.map((k) => [k, true])) as Record<
+        PracticeKey,
+        true
+      >,
+    });
+    if (current) {
+      data.dataStatus = deriveDataStatus({ ...current, ...parsed.data });
+    }
+  }
+
   const cs = await prisma.clientSeason.update({
     where: { id },
-    data: parsed.data,
+    data,
   });
   revalidatePath("/clients");
   revalidatePath(`/clients/${cs.clientId}`);

@@ -104,22 +104,6 @@ async function main() {
     });
   }
 
-  // A palm mill for Indonesia.
-  let mill = await prisma.mill.findFirst({
-    where: { name: "Sample Palm Refinery", userId: user.id },
-  });
-  if (!mill) {
-    mill = await prisma.mill.create({
-      data: {
-        name: "Sample Palm Refinery",
-        crop: "AFRICAN_OIL_PALM",
-        country: "IDN",
-        region: "Riau",
-        userId: user.id,
-      },
-    });
-  }
-
   // Sample regions (managed list; dropdowns adapt by country).
   const riau = await prisma.region.upsert({
     where: {
@@ -139,6 +123,22 @@ async function main() {
     update: {},
     create: { userId: user.id, country: "ARG", name: "Buenos Aires" },
   });
+
+  // A palm mill for Indonesia.
+  let mill = await prisma.mill.findFirst({
+    where: { name: "Sample Palm Refinery", userId: user.id },
+  });
+  if (!mill) {
+    mill = await prisma.mill.create({
+      data: {
+        name: "Sample Palm Refinery",
+        crop: "AFRICAN_OIL_PALM",
+        country: "IDN",
+        regionId: riau.id,
+        userId: user.id,
+      },
+    });
+  }
 
   // A couple of clients under the CP org node.
   const clientData = [
@@ -174,6 +174,10 @@ async function main() {
         enrolledAcres: 2965,
         legalEntitySetup: true,
         dataStatus: "IN_PROGRESS",
+        practicePlanting: "DONE",
+        practiceHarvest: "IN_PROGRESS",
+        practiceTillage: "NOT_STARTED",
+        practiceIrrigation: "N_A",
         fieldRequested: true,
       },
     });
@@ -220,14 +224,22 @@ async function main() {
       crops: ["SOYBEANS", "CORN"],
       enrolledHectares: 800,
       enrolledAcres: 1977,
-      legalEntitySetup: true,
+      boundariesStatus: "DONE",
       dataStatus: "DONE",
+      practicePlanting: "DONE",
+      practiceHarvest: "DONE",
+      practiceTillage: "DONE",
+      practiceFertilizer: "DONE",
+      practiceLiming: "DONE",
+      practiceCropProtection: "DONE",
+      practiceIrrigation: "N_A",
+      practiceCoverCropping: "DONE",
+      practiceSoilSampling: "DONE",
+      practiceAggregation: "DONE",
+      legalEntitySetup: true,
       fieldRequested: true,
-      qaqcNpks: "DONE",
-      qaqcFlags: "RESOLVED",
+      qaqc: "DONE",
       fieldConfirmed: true,
-      deliveredHectares: 780,
-      deliveredAcres: 1927,
     },
   });
 

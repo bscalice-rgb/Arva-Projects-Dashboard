@@ -8,6 +8,10 @@ import { ClientDetail } from "./client-detail";
 
 export const dynamic = "force-dynamic";
 
+const millLabel = (m: { name: string; group: { name: string } | null }) =>
+  m.group ? `${m.group.name} — ${m.name}` : m.name;
+
+
 export default async function ClientDetailPage({
   params,
   searchParams,
@@ -23,13 +27,21 @@ export default async function ClientDetailPage({
     where: { id, userId },
     include: {
       orgNode: { include: { channelPartner: true } },
-      mill: true,
+      mill: { include: { group: true } },
       regions: true,
       seasons: {
         include: {
           ...clientSeasonInclude,
           season: true,
           carriedForwardFrom: { include: { season: true } },
+          areas: {
+            select: {
+              crop: true,
+              regionId: true,
+              enrolledAcres: true,
+              enrolledHectares: true,
+            },
+          },
         },
         orderBy: { season: { year: "desc" } },
       },
@@ -45,8 +57,13 @@ export default async function ClientDetailPage({
     }),
     prisma.mill.findMany({
       where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, crop: true },
+      orderBy: [{ group: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        crop: true,
+        group: { select: { name: true } },
+      },
     }),
     prisma.region.findMany({
       where: { userId },
@@ -84,6 +101,26 @@ export default async function ClientDetailPage({
     ? `Carried forward from ${activeCs.carriedForwardFrom.season.label}.`
     : null;
 
+  // Most recent earlier season record — used to hint "on file last year,
+  // re-collect for this season" on W-8 / contract / bank.
+  const activeYear =
+    activeCs?.season.year ??
+    (selectedSeason?.id === targetSeasonId ? selectedSeason.year : null);
+  const prevCs =
+    activeYear == null
+      ? null
+      : (client.seasons
+          .filter((s) => s.season.year < activeYear)
+          .sort((a, b) => b.season.year - a.season.year)[0] ?? null);
+  const prevSeason = prevCs
+    ? {
+        label: prevCs.season.label,
+        hadW8: prevCs.w8Type != null,
+        contractSigned: prevCs.contractStatus === "SIGNED",
+        bankDetails: prevCs.bankDetails,
+      }
+    : null;
+
   return (
     <ClientDetail
       identity={{
@@ -100,17 +137,20 @@ export default async function ClientDetailPage({
       orgNodeName={client.orgNode.name}
       orgNodeKind={client.orgNode.kind}
       channelPartnerName={client.orgNode.channelPartner?.entityName ?? null}
-      millName={client.mill?.name ?? null}
+      millName={client.mill ? millLabel(client.mill) : null}
       cropsDisplay={client.defaultCrops.map((c) => CROP_LABELS[c]).join(", ")}
       regionsDisplay={client.regions.map((r) => r.name).join(", ")}
       channelPartners={channelPartners}
-      mills={mills}
+      mills={mills.map((m) => ({ id: m.id, name: millLabel(m), crop: m.crop }))}
       regions={regions}
+      clientRegions={client.regions.map((r) => ({ id: r.id, name: r.name }))}
+      areas={activeCs?.areas ?? []}
       seasonLinks={seasonLinks}
       activeSeasonId={targetSeasonId}
       activeSeasonLabel={activeSeasonLabel}
       record={record}
       carriedForwardNote={carriedForwardNote}
+      prevSeason={prevSeason}
     />
   );
 }

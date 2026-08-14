@@ -2,14 +2,15 @@ import type {
   Country,
   Crop,
   DataStatus,
-  QaqcNpks,
-  QaqcFlags,
+  PracticeStatus,
+  QaqcStatus,
   Evidencing,
   EccStatus,
   W8Type,
   ContractStatus,
   OrgNodeKind,
 } from "@prisma/client";
+import { deliveredFor } from "@/lib/area";
 
 /** Fully serializable per-season row used by the table, detail and CSV. */
 export type ClientSeasonRow = {
@@ -30,11 +31,21 @@ export type ClientSeasonRow = {
   enrolledHectares: number | null;
   enrolledAcres: number | null;
 
-  legalEntitySetup: boolean;
+  boundariesStatus: DataStatus;
   dataStatus: DataStatus;
+  practicePlanting: PracticeStatus;
+  practiceHarvest: PracticeStatus;
+  practiceTillage: PracticeStatus;
+  practiceFertilizer: PracticeStatus;
+  practiceLiming: PracticeStatus;
+  practiceCropProtection: PracticeStatus;
+  practiceIrrigation: PracticeStatus;
+  practiceCoverCropping: PracticeStatus;
+  practiceSoilSampling: PracticeStatus;
+  practiceAggregation: PracticeStatus;
+  legalEntitySetup: boolean;
   fieldRequested: boolean;
-  qaqcNpks: QaqcNpks;
-  qaqcFlags: QaqcFlags;
+  qaqc: QaqcStatus;
   fieldConfirmed: boolean;
   evidencing: Evidencing;
   ecc: EccStatus;
@@ -48,8 +59,10 @@ export type ClientSeasonRow = {
 
   fields: number | null;
   tCO2e: number | null;
-  deliveredAcres: number | null;
-  deliveredHectares: number | null;
+  // Derived, not stored: a grower's enrolled area counts as delivered once its
+  // execution pipeline is complete.
+  deliveredAcres: number;
+  deliveredHectares: number;
   amount: number | null;
   paymentDone: boolean;
 
@@ -73,11 +86,21 @@ type PrismaClientSeason = {
   crops: Crop[];
   enrolledHectares: number | null;
   enrolledAcres: number | null;
-  legalEntitySetup: boolean;
+  boundariesStatus: DataStatus;
   dataStatus: DataStatus;
+  practicePlanting: PracticeStatus;
+  practiceHarvest: PracticeStatus;
+  practiceTillage: PracticeStatus;
+  practiceFertilizer: PracticeStatus;
+  practiceLiming: PracticeStatus;
+  practiceCropProtection: PracticeStatus;
+  practiceIrrigation: PracticeStatus;
+  practiceCoverCropping: PracticeStatus;
+  practiceSoilSampling: PracticeStatus;
+  practiceAggregation: PracticeStatus;
+  legalEntitySetup: boolean;
   fieldRequested: boolean;
-  qaqcNpks: QaqcNpks;
-  qaqcFlags: QaqcFlags;
+  qaqc: QaqcStatus;
   fieldConfirmed: boolean;
   evidencing: Evidencing;
   ecc: EccStatus;
@@ -90,8 +113,6 @@ type PrismaClientSeason = {
   bankDetails: boolean;
   fields: number | null;
   tCO2e: number | null;
-  deliveredAcres: number | null;
-  deliveredHectares: number | null;
   amount: number | null;
   paymentDone: boolean;
   comments: string | null;
@@ -129,11 +150,21 @@ export function toClientSeasonRow(cs: PrismaClientSeason): ClientSeasonRow {
     crops: cs.crops,
     enrolledHectares: cs.enrolledHectares,
     enrolledAcres: cs.enrolledAcres,
-    legalEntitySetup: cs.legalEntitySetup,
+    boundariesStatus: cs.boundariesStatus,
     dataStatus: cs.dataStatus,
+    practicePlanting: cs.practicePlanting,
+    practiceHarvest: cs.practiceHarvest,
+    practiceTillage: cs.practiceTillage,
+    practiceFertilizer: cs.practiceFertilizer,
+    practiceLiming: cs.practiceLiming,
+    practiceCropProtection: cs.practiceCropProtection,
+    practiceIrrigation: cs.practiceIrrigation,
+    practiceCoverCropping: cs.practiceCoverCropping,
+    practiceSoilSampling: cs.practiceSoilSampling,
+    practiceAggregation: cs.practiceAggregation,
+    legalEntitySetup: cs.legalEntitySetup,
     fieldRequested: cs.fieldRequested,
-    qaqcNpks: cs.qaqcNpks,
-    qaqcFlags: cs.qaqcFlags,
+    qaqc: cs.qaqc,
     fieldConfirmed: cs.fieldConfirmed,
     evidencing: cs.evidencing,
     ecc: cs.ecc,
@@ -146,8 +177,7 @@ export function toClientSeasonRow(cs: PrismaClientSeason): ClientSeasonRow {
     bankDetails: cs.bankDetails,
     fields: cs.fields,
     tCO2e: cs.tCO2e,
-    deliveredAcres: cs.deliveredAcres,
-    deliveredHectares: cs.deliveredHectares,
+    ...deliveredFor(cs),
     amount: cs.amount,
     paymentDone: cs.paymentDone,
     comments: cs.comments,

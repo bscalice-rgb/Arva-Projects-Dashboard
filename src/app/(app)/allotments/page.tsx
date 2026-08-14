@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/auth";
 import { getSelectedSeason } from "@/lib/season";
-import { computeShedLoaded } from "@/lib/supply-shed";
+import { computeShedLoaded, deriveAreaUnits } from "@/lib/supply-shed";
 import { PageHeader } from "@/components/page-header";
 import { NoSeason } from "@/components/no-season";
 import { AllotmentsClient, type ShedRow } from "./allotments-client";
@@ -21,23 +21,30 @@ export default async function AllotmentsPage() {
     );
   }
 
-  const [sheds, clientSeasons, cps, regions] = await Promise.all([
+  const [sheds, clientSeasons, cps, directGrowers, regions] = await Promise.all([
     prisma.supplyShed.findMany({
       where: { seasonId: season.id, userId },
       include: {
         channelPartner: { select: { entityName: true } },
+        client: { select: { name: true } },
         region: { select: { name: true } },
       },
       orderBy: [{ country: "asc" }, { crop: "asc" }],
     }),
     prisma.clientSeason.findMany({
       where: { seasonId: season.id, client: { userId } },
-      select: {
-        crops: true,
-        deliveredAcres: true,
-        deliveredHectares: true,
+      include: {
+        areas: {
+          select: {
+            crop: true,
+            regionId: true,
+            enrolledAcres: true,
+            enrolledHectares: true,
+          },
+        },
         client: {
           select: {
+            id: true,
             country: true,
             regions: { select: { id: true } },
             orgNode: { select: { channelPartnerId: true } },
@@ -50,6 +57,12 @@ export default async function AllotmentsPage() {
       orderBy: { entityName: "asc" },
       select: { id: true, entityName: true },
     }),
+    // Growers sourced directly (no CP intermediary) — assignable to Direct allotments.
+    prisma.client.findMany({
+      where: { userId, orgNode: { channelPartnerId: null } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, country: true },
+    }),
     prisma.region.findMany({
       where: { userId },
       orderBy: [{ country: "asc" }, { name: "asc" }],
@@ -57,19 +70,7 @@ export default async function AllotmentsPage() {
     }),
   ]);
 
-  // Reshape client-seasons for the matcher (regions -> regionIds).
-  const csForMatch = clientSeasons.map((cs) => ({
-    crops: cs.crops,
-    deliveredAcres: cs.deliveredAcres,
-    deliveredHectares: cs.deliveredHectares,
-    client: {
-      country: cs.client.country,
-      regionIds: cs.client.regions.map((r) => r.id),
-      orgNode: { channelPartnerId: cs.client.orgNode.channelPartnerId },
-    },
-  }));
-
-  const loaded = computeShedLoaded(sheds, csForMatch);
+  const loaded = computeShedLoaded(sheds, deriveAreaUnits(clientSeasons));
 
   const rows: ShedRow[] = sheds.map((s) => {
     const l = loaded.get(s.id) ?? { loadedAcres: 0, loadedHectares: 0 };
@@ -78,6 +79,8 @@ export default async function AllotmentsPage() {
       country: s.country,
       channelPartnerId: s.channelPartnerId,
       channelPartnerName: s.channelPartner?.entityName ?? null,
+      clientId: s.clientId,
+      clientName: s.client?.name ?? null,
       crop: s.crop,
       regionId: s.regionId,
       regionName: s.region?.name ?? null,
@@ -98,6 +101,7 @@ export default async function AllotmentsPage() {
       <AllotmentsClient
         rows={rows}
         channelPartners={cps}
+        directGrowers={directGrowers}
         regions={regions}
         seasonId={season.id}
         seasonLabel={season.label}

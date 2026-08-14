@@ -5,8 +5,8 @@ import {
   Country,
   Crop,
   DataStatus,
-  QaqcNpks,
-  QaqcFlags,
+  QaqcStatus,
+  PracticeStatus,
   Evidencing,
   EccStatus,
   W8Type,
@@ -86,16 +86,36 @@ export const millSchema = z.object({
   name: nonEmptyString,
   crop: z.nativeEnum(Crop),
   country: z.nativeEnum(Country),
-  region: optionalString,
+  regionId: optionalString,
+  groupId: optionalString,
   notes: optionalString,
 });
 export type MillInput = z.infer<typeof millSchema>;
+
+export const millGroupSchema = z.object({
+  name: nonEmptyString,
+  country: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.nativeEnum(Country).nullable(),
+  ),
+  notes: optionalString,
+});
+export type MillGroupInput = z.infer<typeof millGroupSchema>;
 
 export const regionSchema = z.object({
   country: z.nativeEnum(Country),
   name: nonEmptyString,
 });
 export type RegionInput = z.infer<typeof regionSchema>;
+
+export const clientSeasonAreaSchema = z.object({
+  crop: z.nativeEnum(Crop),
+  regionId: nonEmptyString,
+  enrolledAcres: optionalNumber,
+  enrolledHectares: optionalNumber,
+});
+export const clientSeasonAreasSchema = z.array(clientSeasonAreaSchema);
+export type ClientSeasonAreaInput = z.infer<typeof clientSeasonAreaSchema>;
 
 export const clientSchema = z.object({
   // Enrollment channel: a Channel Partner id, or null for a direct grower.
@@ -106,6 +126,10 @@ export const clientSchema = z.object({
   defaultCrops: z.array(z.nativeEnum(Crop)).default([]),
   millId: optionalString,
   regionIds: z.array(z.string()).default([]),
+  // Optional enrolled area for the current season, written to the season record
+  // created alongside the grower (ignored on identity-only updates).
+  enrolledAcres: optionalNumber,
+  enrolledHectares: optionalNumber,
 });
 export type ClientInput = z.infer<typeof clientSchema>;
 
@@ -115,11 +139,22 @@ export const clientSeasonEditableSchema = z.object({
   enrolledHectares: optionalNumber,
   enrolledAcres: optionalNumber,
 
+  boundariesStatus: z.nativeEnum(DataStatus),
+  // dataStatus is derived from the practices below (see src/lib/practices.ts)
+  // and recomputed server-side, so it is not accepted from the client.
+  practicePlanting: z.nativeEnum(PracticeStatus),
+  practiceHarvest: z.nativeEnum(PracticeStatus),
+  practiceTillage: z.nativeEnum(PracticeStatus),
+  practiceFertilizer: z.nativeEnum(PracticeStatus),
+  practiceLiming: z.nativeEnum(PracticeStatus),
+  practiceCropProtection: z.nativeEnum(PracticeStatus),
+  practiceIrrigation: z.nativeEnum(PracticeStatus),
+  practiceCoverCropping: z.nativeEnum(PracticeStatus),
+  practiceSoilSampling: z.nativeEnum(PracticeStatus),
+  practiceAggregation: z.nativeEnum(PracticeStatus),
   legalEntitySetup: z.boolean(),
-  dataStatus: z.nativeEnum(DataStatus),
   fieldRequested: z.boolean(),
-  qaqcNpks: z.nativeEnum(QaqcNpks),
-  qaqcFlags: z.nativeEnum(QaqcFlags),
+  qaqc: z.nativeEnum(QaqcStatus),
   fieldConfirmed: z.boolean(),
   evidencing: z.nativeEnum(Evidencing),
   ecc: z.nativeEnum(EccStatus),
@@ -136,8 +171,6 @@ export const clientSeasonEditableSchema = z.object({
 
   fields: optionalNumber,
   tCO2e: optionalNumber,
-  deliveredAcres: optionalNumber,
-  deliveredHectares: optionalNumber,
   amount: optionalNumber,
   paymentDone: z.boolean(),
 
@@ -154,6 +187,8 @@ export type ClientSeasonPatch = z.infer<typeof clientSeasonPatchSchema>;
 export const supplyShedSchema = z.object({
   country: z.nativeEnum(Country),
   channelPartnerId: optionalString,
+  // Direct (no CP) allotments may target a specific grower.
+  clientId: optionalString,
   crop: z.nativeEnum(Crop),
   regionId: optionalString,
   acresNeeded: z.preprocess((v) => {
